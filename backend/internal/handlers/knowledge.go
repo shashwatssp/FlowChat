@@ -12,36 +12,38 @@ import (
 	"strings"
 	"time"
 
-	"chatflow/backend/internal/qdrant"
-	"chatflow/backend/internal/supabase"
-	"chatflow/backend/internal/utils"
+	"flowchat/backend/internal/qdrant"
+	"flowchat/backend/internal/supabase"
+	"flowchat/backend/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
 
 type KnowledgeHandler struct {
-	supabaseClient  *supabase.Client
-	qdrantClient    *qdrant.Client
-	openrouterKey   string
-	chunkSize       int
-	chunkOverlap    int
-	questionModel   string
-	visionModel     string
-	baseURL         string
-	embeddingModel  string
+	supabaseClient *supabase.Client
+	qdrantClient   *qdrant.Client
+	openrouterKey  string
+	chunkSize      int
+	chunkOverlap   int
+	questionModel  string
+	visionModel    string
+	baseURL        string
+	embeddingModel string
+	cohereClient   utils.Embedder
 }
 
-func NewKnowledgeHandler(client *supabase.Client, qdrant *qdrant.Client, openrouterKey string, chunkSize, chunkOverlap int, questionModel, visionModel, baseURL, embeddingModel string) *KnowledgeHandler {
+func NewKnowledgeHandler(client *supabase.Client, qdrant *qdrant.Client, openrouterKey string, chunkSize, chunkOverlap int, questionModel, visionModel, baseURL, embeddingModel string, cohereClient utils.Embedder) *KnowledgeHandler {
 	return &KnowledgeHandler{
-		supabaseClient:  client,
-		qdrantClient:    qdrant,
-		openrouterKey:   openrouterKey,
-		chunkSize:       chunkSize,
-		chunkOverlap:    chunkOverlap,
-		questionModel:   questionModel,
-		visionModel:     visionModel,
-		baseURL:         baseURL,
-		embeddingModel:  embeddingModel,
+		supabaseClient: client,
+		qdrantClient:   qdrant,
+		openrouterKey:  openrouterKey,
+		chunkSize:      chunkSize,
+		chunkOverlap:   chunkOverlap,
+		questionModel:  questionModel,
+		visionModel:    visionModel,
+		baseURL:        baseURL,
+		embeddingModel: embeddingModel,
+		cohereClient:   cohereClient,
 	}
 }
 
@@ -98,8 +100,8 @@ func (h *KnowledgeHandler) UploadFile(c *gin.Context) {
 	var textContent string
 	switch ext {
 	case ".png", ".jpg", ".jpeg", ".webp", ".gif":
-sourceType = "image"
-	embedder := utils.NewOpenRouterClient(h.openrouterKey, h.baseURL).WithEmbeddingModel(h.embeddingModel)
+		sourceType = "image"
+		embedder := utils.NewOpenRouterClient(h.openrouterKey, h.baseURL).WithEmbeddingModel(h.embeddingModel)
 		mimeType := mime.TypeByExtension(ext)
 		if mimeType == "" {
 			mimeType = "application/octet-stream"
@@ -110,16 +112,15 @@ sourceType = "image"
 		} else {
 			textContent = fmt.Sprintf("Product image (%s). %s", file.Filename, description)
 		}
-		default:
+	default:
 		textContent = string(content)
 	}
 
 	// Chunk the text
-chunks := utils.ChunkText(textContent, h.chunkSize, h.chunkOverlap)
+	chunks := utils.ChunkText(textContent, h.chunkSize, h.chunkOverlap)
 
-	// Generate embeddings for chunks
-	embedder := utils.NewOpenRouterClient(h.openrouterKey, h.baseURL).WithEmbeddingModel(h.embeddingModel)
-	embeddings, err := embedder.GenerateEmbeddings(c.Request.Context(), chunks)
+	// Generate embeddings for chunks using Cohere (search_document).
+	embeddings, err := h.cohereClient.GenerateEmbeddings(c.Request.Context(), chunks, "search_document")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to generate embeddings: %v", err)})
 		return
@@ -133,9 +134,9 @@ chunks := utils.ChunkText(textContent, h.chunkSize, h.chunkOverlap)
 			ID:     pointID,
 			Vector: embeddings[i],
 			Payload: map[string]interface{}{
-			"bot_id":      botID,
-			"source_name": file.Filename,
-			"source_type": sourceType,
+				"bot_id":      botID,
+				"source_name": file.Filename,
+				"source_type": sourceType,
 				"content":     chunk,
 				"created_at":  time.Now().Format(time.RFC3339),
 			},
@@ -151,7 +152,7 @@ chunks := utils.ChunkText(textContent, h.chunkSize, h.chunkOverlap)
 	sourceData := map[string]interface{}{
 		"bot_id":      botID,
 		"name":        file.Filename,
-	"type":        sourceType,
+		"type":        sourceType,
 		"url":         "",
 		"status":      "processed",
 		"chunk_count": len(chunks),
@@ -199,12 +200,11 @@ func (h *KnowledgeHandler) ScrapeWebsite(c *gin.Context) {
 		return
 	}
 
-textContent := extractTextFromHTML(string(body))
+	textContent := extractTextFromHTML(string(body))
 	chunks := utils.ChunkText(textContent, h.chunkSize, h.chunkOverlap)
 
-	// Generate embeddings
-	embedder := utils.NewOpenRouterClient(h.openrouterKey, h.baseURL).WithEmbeddingModel(h.embeddingModel)
-	embeddings, err := embedder.GenerateEmbeddings(c.Request.Context(), chunks)
+	// Generate embeddings using Cohere (search_document).
+	embeddings, err := h.cohereClient.GenerateEmbeddings(c.Request.Context(), chunks, "search_document")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to generate embeddings: %v", err)})
 		return
@@ -294,9 +294,9 @@ func (h *KnowledgeHandler) ListConversations(c *gin.Context) {
 	botID := c.Param("id")
 
 	results, err := h.supabaseClient.From("conversations").
-		Select("*").
+		Select("id,bot_id,started_at:created_at,last_message_at").
 		Eq("bot_id", botID).
-		Order("created_at", true).
+		Order("last_message_at", true).
 		Execute(c.Request.Context())
 
 	if err != nil {
@@ -325,9 +325,9 @@ func (h *KnowledgeHandler) GetConversation(c *gin.Context) {
 }
 
 type FeedbackRequest struct {
-	Helpful    bool   `json:"helpful"`
-	UserRating int    `json:"user_rating"`
-	Comment    string `json:"comment"`
+	Helpful bool   `json:"helpful"`
+	Rating  int    `json:"rating"`
+	Comment string `json:"comment"`
 }
 
 func (h *KnowledgeHandler) SaveFeedback(c *gin.Context) {
@@ -342,9 +342,11 @@ func (h *KnowledgeHandler) SaveFeedback(c *gin.Context) {
 	feedbackData := map[string]interface{}{
 		"conversation_id": convID,
 		"helpful":         req.Helpful,
-		"rating":          req.UserRating,
 		"comment":         req.Comment,
 		"created_at":      time.Now().Format(time.RFC3339),
+	}
+	if req.Rating > 0 {
+		feedbackData["rating"] = req.Rating
 	}
 
 	_, err := h.supabaseClient.From("feedback").Insert(feedbackData)
@@ -370,7 +372,7 @@ func (h *KnowledgeHandler) SuggestQuestions(c *gin.Context) {
 		return
 	}
 
-prompt := fmt.Sprintf(`You are an assistant that generates FAQ questions for a small business chatbot. The business is named "%s". Description: %s. Generate 6 to 8 questions that a customer might realistically ask this business. Return ONLY a JSON array of question strings, with no extra text or markdown.`, req.Name, req.Description)
+	prompt := fmt.Sprintf(`You are an assistant that generates FAQ questions for a small business chatbot. The business is named "%s". Description: %s. Generate 6 to 8 questions that a customer might realistically ask this business. Return ONLY a JSON array of question strings, with no extra text or markdown.`, req.Name, req.Description)
 
 	embedder := utils.NewOpenRouterClient(h.openrouterKey, h.baseURL).WithEmbeddingModel(h.embeddingModel)
 	chatReq := utils.ChatRequest{
@@ -449,9 +451,9 @@ func (h *KnowledgeHandler) SaveQA(c *gin.Context) {
 		return
 	}
 
-chunks := utils.ChunkText(text, h.chunkSize, h.chunkOverlap)
-	embedder := utils.NewOpenRouterClient(h.openrouterKey, h.baseURL).WithEmbeddingModel(h.embeddingModel)
-	embeddings, err := embedder.GenerateEmbeddings(c.Request.Context(), chunks)
+	chunks := utils.ChunkText(text, h.chunkSize, h.chunkOverlap)
+	// Generate embeddings using Cohere (search_document).
+	embeddings, err := h.cohereClient.GenerateEmbeddings(c.Request.Context(), chunks, "search_document")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to generate embeddings: %v", err)})
 		return

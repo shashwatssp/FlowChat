@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"chatflow/backend/internal/qdrant"
-	"chatflow/backend/internal/supabase"
-	"chatflow/backend/internal/utils"
+	"flowchat/backend/internal/qdrant"
+	"flowchat/backend/internal/supabase"
+	"flowchat/backend/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,9 +23,10 @@ type ChatHandler struct {
 	baseURL        string
 	chatModel      string
 	embeddingModel string
+	cohereClient   utils.Embedder
 }
 
-func NewChatHandler(client *supabase.Client, qdrant *qdrant.Client, openrouterKey, baseURL, chatModel, embeddingModel string) *ChatHandler {
+func NewChatHandler(client *supabase.Client, qdrant *qdrant.Client, openrouterKey, baseURL, chatModel, embeddingModel string, cohereClient utils.Embedder) *ChatHandler {
 	return &ChatHandler{
 		supabaseClient: client,
 		qdrantClient:   qdrant,
@@ -33,6 +34,7 @@ func NewChatHandler(client *supabase.Client, qdrant *qdrant.Client, openrouterKe
 		baseURL:        baseURL,
 		chatModel:      chatModel,
 		embeddingModel: embeddingModel,
+		cohereClient:   cohereClient,
 	}
 }
 
@@ -63,6 +65,7 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 		return
 	}
 
+	log.Printf("[chat] STEP 1: looking up bot by slug=%s", botSlug)
 	// Look up bot by slug
 	botResults, err := h.supabaseClient.From("bots").
 		Select("*").
@@ -70,6 +73,7 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 		Execute(c.Request.Context())
 
 	if err != nil || len(botResults) == 0 {
+		log.Printf("[chat] bot not found slug=%s err=%v results=%d", botSlug, err, len(botResults))
 		c.JSON(http.StatusNotFound, gin.H{"error": "Bot not found"})
 		return
 	}
@@ -78,27 +82,47 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 	botID := getString(bot, "id")
 	botName := getString(bot, "name")
 	systemPrompt := getString(bot, "system_prompt")
+	log.Printf("[chat] STEP 2: bot found id=%s name=%s", botID, botName)
 
 	// Get or create conversation
 	conversationID := req.ConversationID
 	if conversationID == "" {
-		conversationID = generateID()
+		conversationID, err = utils.GenerateUUID()
+		if err != nil {
+			log.Printf("[chat] STEP 3 error: failed to generate UUID: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create conversation"})
+			return
+		}
 		convData := map[string]interface{}{
 			"id":         conversationID,
 			"bot_id":     botID,
 			"created_at": time.Now().Format(time.RFC3339),
 		}
-		_, _ = h.supabaseClient.From("conversations").Insert(convData)
+		log.Printf("[chat] STEP 3: creating new conversation id=%s", conversationID)
+		if _, insertErr := h.supabaseClient.From("conversations").Insert(convData); insertErr != nil {
+			log.Printf("[chat] STEP 3 error: failed to create conversation: %v", insertErr)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create conversation"})
+			return
+		}
+		log.Printf("[chat] STEP 3 done: conversation created")
+	} else {
+		log.Printf("[chat] STEP 3: using existing conversation id=%s", conversationID)
 	}
 
-	// Generate embedding for user query
-	embedder := utils.NewOpenRouterClient(h.openrouterKey, h.baseURL).WithEmbeddingModel(h.embeddingModel)
-	queryEmbeddings, err := embedder.GenerateEmbeddings(c.Request.Context(), []string{req.Message})
-	if err != nil {
-		// Graceful fallback: if no embedding provider is configured (e.g. Poolside
-		// Platform currently has no embedding model), answer from the bot prompt
-		// without retrieval-augmented context, mirroring the Qdrant fallback below.
-		log.Printf("WARN: embeddings unavailable (%v); answering without knowledge context", err)
+	// Generate the user's query embedding via Cohere (search_query).
+	// Falls back to retrieval-less answering if embeddings are unavailable,
+	// mirroring the Qdrant fallback below.
+	log.Printf("[chat] STEP 4: starting Cohere embeddings for message=%q", req.Message)
+	var queryEmbeddings [][]float32
+	if h.cohereClient != nil {
+		queryEmbeddings, err = h.cohereClient.GenerateEmbeddings(c.Request.Context(), []string{req.Message}, "search_query")
+		if err != nil {
+			log.Printf("[chat] WARN: cohere query embedding failed (%v); answering without knowledge context", err)
+		} else {
+			log.Printf("[chat] STEP 4 done: got %d embedding(s) dim=%d", len(queryEmbeddings), len(queryEmbeddings[0]))
+		}
+	} else {
+		log.Printf("[chat] STEP 4 skipped: cohereClient is nil")
 	}
 
 	// Search Qdrant for relevant knowledge (only when we have an embedding)
@@ -107,12 +131,16 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 		filter := map[string]interface{}{
 			"bot_id": botID,
 		}
+		log.Printf("[chat] STEP 5: starting Qdrant search on collection=knowledge_chunks")
 		searchResults, err = h.qdrantClient.Search(c.Request.Context(), "knowledge_chunks", queryEmbeddings[0], 5, filter)
 		if err != nil {
-			// If search fails, continue without context
+			log.Printf("[chat] STEP 5 error: Qdrant search failed (%v); continuing without context", err)
 			searchResults = []qdrant.SearchResult{}
+		} else {
+			log.Printf("[chat] STEP 5 done: %d search results", len(searchResults))
 		}
 	} else {
+		log.Printf("[chat] STEP 5 skipped: no query embeddings")
 		searchResults = []qdrant.SearchResult{}
 	}
 
@@ -169,27 +197,34 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 
 	// Use the configured chat model
 	model := h.chatModel
+	log.Printf("[chat] STEP 6: calling LLM model=%s baseURL=%s stream=%v", model, h.baseURL, req.Stream)
 
 	if req.Stream {
 		// Streaming response
-		h.handleStreamChat(c, messages, model, conversationID, sources)
+		h.handleStreamChat(c, messages, model, conversationID, botID, sources)
 		return
 	}
 
+
 	// Non-streaming response
+	// Chat completion via the OpenAI-compatible client.
+	llm := utils.NewOpenRouterClient(h.openrouterKey, h.baseURL)
 	chatReq := utils.ChatRequest{
 		Model:       model,
 		Messages:    messages,
 		Stream:      false,
 		Temperature: 0.7,
-		MaxTokens:   2048,
+		MaxTokens:   512,
 	}
 
-	chatResp, err := embedder.GenerateChat(c.Request.Context(), chatReq)
+	chatResp, err := llm.GenerateChat(c.Request.Context(), chatReq)
+	log.Printf("[chat] STEP 6b: LLM response received err=%v", err)
 	if err != nil {
+		log.Printf("[chat] STEP 6 error: LLM request failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to generate response: %v", err)})
 		return
 	}
+	log.Printf("[chat] STEP 6 done: LLM responded with %d choice(s)", len(chatResp.Choices))
 
 	response := ""
 	if len(chatResp.Choices) > 0 {
@@ -197,8 +232,12 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 	}
 
 	// Save messages to database
-	h.saveMessage(c.Request.Context(), conversationID, botID, "user", req.Message)
-	h.saveMessage(c.Request.Context(), conversationID, botID, "assistant", response)
+	if err := h.saveMessage(c.Request.Context(), conversationID, botID, "user", req.Message); err != nil {
+		log.Printf("[chat] WARN: saveMessage (user) failed conv=%s bot_id=%s err=%v", conversationID, botID, err)
+	}
+	if err := h.saveMessage(c.Request.Context(), conversationID, botID, "assistant", response); err != nil {
+		log.Printf("[chat] WARN: saveMessage (assistant) failed conv=%s bot_id=%s err=%v", conversationID, botID, err)
+	}
 
 	// Update usage count
 	h.updateBotUsage(c.Request.Context(), botID)
@@ -210,7 +249,7 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 	})
 }
 
-func (h *ChatHandler) handleStreamChat(c *gin.Context, messages []map[string]interface{}, model, conversationID string, sources []Source) {
+func (h *ChatHandler) handleStreamChat(c *gin.Context, messages []map[string]interface{}, model, conversationID, botID string, sources []Source) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
@@ -220,7 +259,7 @@ func (h *ChatHandler) handleStreamChat(c *gin.Context, messages []map[string]int
 		Messages:    messages,
 		Stream:      true,
 		Temperature: 0.7,
-		MaxTokens:   2048,
+		MaxTokens:   512,
 	}
 
 	embedder := utils.NewOpenRouterClient(h.openrouterKey, h.baseURL)
@@ -256,10 +295,14 @@ func (h *ChatHandler) handleStreamChat(c *gin.Context, messages []map[string]int
 	fmt.Fprintf(c.Writer, "data: %s\n\n", metaData)
 	c.Writer.Flush()
 
-	// Save messages asynchronously
+	// Save messages asynchronously (with real bot_id so the not-null FK is satisfied)
 	go func() {
-		h.saveMessage(context.Background(), conversationID, "", "user", extractUserMessage(messages))
-		h.saveMessage(context.Background(), conversationID, "", "assistant", fullResponse.String())
+		if err := h.saveMessage(context.Background(), conversationID, botID, "user", extractUserMessage(messages)); err != nil {
+			log.Printf("[chat] WARN: async saveMessage (user) failed conv=%s bot_id=%s err=%v", conversationID, botID, err)
+		}
+		if err := h.saveMessage(context.Background(), conversationID, botID, "assistant", fullResponse.String()); err != nil {
+			log.Printf("[chat] WARN: async saveMessage (assistant) failed conv=%s bot_id=%s err=%v", conversationID, botID, err)
+		}
 	}()
 }
 
@@ -284,7 +327,7 @@ func (h *ChatHandler) getConversationHistory(ctx context.Context, conversationID
 	return messages, nil
 }
 
-func (h *ChatHandler) saveMessage(ctx context.Context, conversationID, botID, role, content string) {
+func (h *ChatHandler) saveMessage(ctx context.Context, conversationID, botID, role, content string) error {
 	data := map[string]interface{}{
 		"conversation_id": conversationID,
 		"bot_id":          botID,
@@ -292,7 +335,11 @@ func (h *ChatHandler) saveMessage(ctx context.Context, conversationID, botID, ro
 		"content":         content,
 		"created_at":      time.Now().Format(time.RFC3339),
 	}
-	_, _ = h.supabaseClient.From("messages").Insert(data)
+	_, err := h.supabaseClient.From("messages").Insert(data)
+	if err != nil {
+		log.Printf("[chat] WARN: saveMessage DB insert failed role=%s conv=%s bot_id=%s err=%v", role, conversationID, botID, err)
+	}
+	return err
 }
 
 func (h *ChatHandler) updateBotUsage(ctx context.Context, botID string) {

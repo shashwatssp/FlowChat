@@ -2,12 +2,14 @@ package middleware
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 
-	"chatflow/backend/internal/supabase"
+	"flowchat/backend/internal/supabase"
+	"flowchat/backend/internal/utils"
 
-"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 type contextKey string
@@ -15,12 +17,14 @@ type contextKey string
 const UserIDKey contextKey = "userID"
 const BotIDKey contextKey = "botID"
 
-// JWTAuth middleware validates JWT tokens via Supabase /auth/v1/user
-// and sets the real user UUID in the request context.
-func JWTAuth(jwtSecret string, supabaseClient *supabase.Client) gin.HandlerFunc {
+// JWTAuth middleware validates locally-issued HS256 JWT tokens and sets
+// the user UUID in the request context. This replaces the previous Supabase
+// /auth/v1/user lookup, which rejected our self-signed tokens.
+func JWTAuth(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
+			log.Printf("[auth] JWTAuth: missing Authorization header path=%s", c.Request.URL.Path)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
 			c.Abort()
 			return
@@ -33,23 +37,25 @@ func JWTAuth(jwtSecret string, supabaseClient *supabase.Client) gin.HandlerFunc 
 			token = authHeader
 		}
 		if token == "" {
+			log.Printf("[auth] JWTAuth: empty token path=%s", c.Request.URL.Path)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
 			c.Abort()
 			return
 		}
-		user, err := supabaseClient.GetUser(c.Request.Context(), token)
-		if err != nil || user["id"] == nil {
+		claims, err := utils.VerifyToken(jwtSecret, token)
+		if err != nil {
+			log.Printf("[auth] JWTAuth: verify failed path=%s err=%v", c.Request.URL.Path, err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			c.Abort()
 			return
 		}
-		userID, ok := user["id"].(string)
-		if !ok || userID == "" {
+		if claims.UserID == "" {
+			log.Printf("[auth] JWTAuth: token has no user_id path=%s", c.Request.URL.Path)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token: no user ID"})
 			c.Abort()
 			return
 		}
-		c.Set(string(UserIDKey), userID)
+		c.Set(string(UserIDKey), claims.UserID)
 		c.Next()
 	}
 }

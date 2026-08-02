@@ -7,11 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"chatflow/backend/internal/config"
-	"chatflow/backend/internal/handlers"
-	"chatflow/backend/internal/middleware"
-	"chatflow/backend/internal/qdrant"
-	"chatflow/backend/internal/supabase"
+	"flowchat/backend/internal/config"
+	"flowchat/backend/internal/handlers"
+	"flowchat/backend/internal/middleware"
+	"flowchat/backend/internal/qdrant"
+	"flowchat/backend/internal/supabase"
+	"flowchat/backend/internal/utils"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -68,7 +69,7 @@ func main() {
 
 	// Initialize Qdrant collections
 	if err := qdrantClient.InitializeCollections(); err != nil {
-		log.Fatalf("Failed to initialize Qdrant collections: %v", err)
+		log.Printf("Warning: Failed to initialize Qdrant collections (continuing in degraded mode, vector search disabled): %v", err)
 	}
 
 	// Setup router
@@ -77,13 +78,19 @@ func main() {
 	router.Use(gin.Logger())
 
 	// CORS configuration
-	router.Use(cors.Default()) // Allow all origins for development, configure properly in production
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     strings.Split(cfg.AllowedOrigins, ","),
+		AllowMethods:     []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"},
+		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+		ExposeHeaders:    []string{"Content-Length"},
+	}))
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "ok",
-			"service": "ChatFlow API",
+			"service": "FlowChat API",
 			"version": "1.0.0",
 		})
 	})
@@ -91,8 +98,9 @@ func main() {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(supabaseClient, cfg.JWTSecret, cfg.SupabaseURL)
 	botHandler := handlers.NewBotHandler(supabaseClient, qdrantClient)
-	knowledgeHandler := handlers.NewKnowledgeHandler(supabaseClient, qdrantClient, cfg.OpenRouterAPIKey, cfg.ChunkSize, cfg.ChunkOverlap, cfg.QuestionModel, cfg.VisionModel, cfg.OpenRouterBaseURL, cfg.EmbeddingModel)
-	chatHandler := handlers.NewChatHandler(supabaseClient, qdrantClient, cfg.OpenRouterAPIKey, cfg.OpenRouterBaseURL, cfg.ChatModel, cfg.EmbeddingModel)
+	cohereClient := utils.NewCohereClient(cfg.CohereAPIKey, cfg.CohereBaseURL).WithModel(cfg.CohereEmbeddingModel)
+	knowledgeHandler := handlers.NewKnowledgeHandler(supabaseClient, qdrantClient, cfg.OpenRouterAPIKey, cfg.ChunkSize, cfg.ChunkOverlap, cfg.QuestionModel, cfg.VisionModel, cfg.OpenRouterBaseURL, cfg.EmbeddingModel, cohereClient)
+	chatHandler := handlers.NewChatHandler(supabaseClient, qdrantClient, cfg.OpenRouterAPIKey, cfg.OpenRouterBaseURL, cfg.ChatModel, cfg.EmbeddingModel, cohereClient)
 
 	// Routes
 	api := router.Group("/api/v1")
@@ -116,7 +124,7 @@ func main() {
 
 		// Protected routes
 		protected := api.Group("")
-		protected.Use(middleware.JWTAuth(cfg.JWTSecret, supabaseClient))
+		protected.Use(middleware.JWTAuth(cfg.JWTSecret))
 		{
 			// Bot management
 			bots := protected.Group("/bots")
@@ -159,7 +167,7 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("Starting ChatFlow API server on port %s", port)
+	log.Printf("Starting FlowChat API server on port %s", port)
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -78,6 +79,17 @@ func (c *Client) Auth() *AuthClient {
 	}
 }
 
+// isJWT reports whether s is a compact JWT (three dot-separated base64 parts),
+// i.e. a genuine bearer token. Supabase's newer opaque API keys
+// (sb_publishable_*/sb_secret_*) are NOT JWTs; sending them as
+// "Authorization: Bearer" makes PostgREST reject the request with
+// "Expected 3 parts in JWT". For those keys the apikey header already conveys
+// the correct role (anon or service) and a Bearer value must be omitted.
+func isJWT(s string) bool {
+	parts := strings.Split(s, ".")
+	return len(parts) == 3 && parts[0] != "" && parts[1] != "" && parts[2] != ""
+}
+
 func (c *Client) rpc(ctx context.Context, method, endpoint string, body interface{}, useService bool) (*http.Response, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -103,10 +115,15 @@ func (c *Client) rpc(ctx context.Context, method, endpoint string, body interfac
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("apikey", client.apiKey)
-	if useService && client.serviceKey != "" {
-		req.Header.Set("Authorization", "Bearer "+client.serviceKey)
-	} else {
-		req.Header.Set("Authorization", "Bearer "+client.apiKey)
+	// Only attach an Authorization: Bearer header when we have a real JWT.
+	// For service/admin calls the service key grants the role via the apikey
+	// header (opaque keys are rejected as a Bearer by PostgREST); for legacy
+	// JWT keys we still send the key as a Bearer token.
+	switch {
+	case useService && c.serviceKey != "" && isJWT(c.serviceKey):
+		req.Header.Set("Authorization", "Bearer "+c.serviceKey)
+	case !useService && isJWT(c.apiKey):
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	}
 
 	resp, err := client.httpClient.Do(req)
@@ -153,8 +170,8 @@ type QueryBuilder struct {
 	queryParams map[string]string
 	selectQuery string
 	filters     []string
-	method      string        // HTTP method for deferred write ops (PATCH, DELETE)
-	body        interface{}   // data payload for deferred write ops
+	method      string      // HTTP method for deferred write ops (PATCH, DELETE)
+	body        interface{} // data payload for deferred write ops
 }
 
 func (qb *QueryBuilder) Select(columns string) *QueryBuilder {
@@ -225,8 +242,9 @@ func (qb *QueryBuilder) Execute(ctx context.Context) ([]map[string]interface{}, 
 	}
 
 	var results []map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
-		return nil, fmt.Errorf("failed to decode results: %w", err)
+	decErr := json.NewDecoder(resp.Body).Decode(&results)
+	if decErr != nil && decErr != io.EOF {
+		return nil, fmt.Errorf("failed to decode results: %w", decErr)
 	}
 
 	return results, nil
@@ -259,11 +277,17 @@ func (qb *QueryBuilder) InsertReturning(data map[string]interface{}) (map[string
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("apikey", qb.client.apiKey)
-	// Use service key (bypasses RLS) when available, otherwise fallback to anon key
+	// Inserts that set user_id/explicit fields must run as the service role to
+	// bypass RLS. With opaque API keys the service role is conveyed by the
+	// apikey header alone (a Bearer value is not sent for opaque keys).
+	apiKey := qb.client.apiKey
 	if qb.client.serviceKey != "" {
+		apiKey = qb.client.serviceKey
+	}
+	req.Header.Set("apikey", apiKey)
+	if qb.client.serviceKey != "" && isJWT(qb.client.serviceKey) {
 		req.Header.Set("Authorization", "Bearer "+qb.client.serviceKey)
-	} else {
+	} else if isJWT(qb.client.apiKey) {
 		req.Header.Set("Authorization", "Bearer "+qb.client.apiKey)
 	}
 	req.Header.Set("Prefer", "return=representation")
@@ -362,6 +386,31 @@ type AuthClient struct {
 }
 
 func (a *AuthClient) SignUp(ctx context.Context, email, password string, data map[string]interface{}) (string, error) {
+	// Preferred path: create the user through the GoTrue Admin API with
+	// email_confirm=true. The admin endpoint (service_role key) does NOT send a
+	// confirmation email, which bypasses Supabase's "over_email_send_rate_limit"
+	// (HTTP 429) that throttles the public /auth/v1/signup endpoint once
+	// email-confirmation is enabled on the project.
+	if a.client.serviceKey != "" {
+		adminData := map[string]interface{}{
+			"email":         email,
+			"password":      password,
+			"email_confirm": true,
+		}
+		if data != nil {
+			adminData["user_metadata"] = data
+		}
+		userID, err := a.adminCreateUser(ctx, adminData)
+		if err == nil {
+			log.Printf("[supabase] SignUp: created confirmed user via admin API id=%s email=%s", userID, email)
+			return userID, nil
+		}
+		// Fall back to the public signup so the caller still gets a concrete
+		// Supabase response rather than an opaque failure.
+		log.Printf("[supabase] SignUp: admin create failed (%v); trying public signup", err)
+	}
+
+	// Fallback: public signup (anon key, no Bearer).
 	signupData := map[string]interface{}{
 		"email":    email,
 		"password": password,
@@ -376,13 +425,25 @@ func (a *AuthClient) SignUp(ctx context.Context, email, password string, data ma
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
+	log.Printf("[supabase] SignUp: public signup -> HTTP %d body=%s", resp.StatusCode, string(body))
+
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("failed to decode signup response: %w", err)
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("failed to decode signup response: %w (body=%s)", err, string(body))
 	}
 
 	if result["user"] == nil {
-		return "", fmt.Errorf("signup failed - check email format")
+		msg := ""
+		if m, ok := result["msg"].(string); ok && m != "" {
+			msg = m
+		} else if e, ok := result["error"].(string); ok && e != "" {
+			msg = e
+		}
+		if msg == "" {
+			msg = "signup failed - check email format"
+		}
+		return "", fmt.Errorf("%s", msg)
 	}
 
 	user, ok := result["user"].(map[string]interface{})
@@ -398,26 +459,72 @@ func (a *AuthClient) SignUp(ctx context.Context, email, password string, data ma
 	return userID, nil
 }
 
+// adminCreateUser creates a user via the GoTrue Admin API using the service_role
+// key. Setting email_confirm=true means NO confirmation email is sent, so the
+// email rate-limit (HTTP 429) does not apply. The admin endpoint also requires
+// Authorization: Bearer <service-key> even for opaque keys (the apikey header
+// alone is not sufficient for GoTrue admin endpoints, unlike PostgREST).
+func (a *AuthClient) adminCreateUser(ctx context.Context, payload map[string]interface{}) (string, error) {
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("marshal admin create body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", a.client.url+AuthAPISuffix+"admin/users", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", fmt.Errorf("create admin signup request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("apikey", a.client.serviceKey)
+	req.Header.Set("Authorization", "Bearer "+a.client.serviceKey)
+
+	resp, err := a.client.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("execute admin signup: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	log.Printf("[supabase] adminCreateUser -> HTTP %d body=%s", resp.StatusCode, string(respBytes))
+
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("admin create user failed: %s", strings.TrimSpace(string(respBytes)))
+	}
+
+	var result map[string]interface{}
+	_ = json.Unmarshal(respBytes, &result)
+
+	if id, ok := result["id"].(string); ok && id != "" {
+		return id, nil
+	}
+	return "", fmt.Errorf("admin create user: no id in response (body=%s)", strings.TrimSpace(string(respBytes)))
+}
+
 func (a *AuthClient) SignIn(ctx context.Context, email, password string) (string, error) {
 	signinData := map[string]interface{}{
 		"email":    email,
 		"password": password,
 	}
 
-	resp, err := a.client.rpc(ctx, "POST", AuthAPISuffix+"token", signinData, false)
+	// Supabase's /auth/v1/token requires grant_type=password as a query
+	// parameter (not in the JSON body); omitting it returns unsupported_grant_type.
+	resp, err := a.client.rpc(ctx, "POST", AuthAPISuffix+"token?grant_type=password", signinData, false)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
+	log.Printf("[supabase] SignIn: token exchange -> HTTP %d body=%s", resp.StatusCode, string(body))
+
 	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("signin failed: %s", string(body))
 	}
 
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("failed to decode signin response: %w", err)
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("failed to decode signin response: %w (body=%s)", err, string(body))
 	}
 
 	accessToken, ok := result["access_token"].(string)

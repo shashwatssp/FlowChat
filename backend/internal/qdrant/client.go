@@ -101,7 +101,7 @@ func (c *Client) InitializeCollections() error {
 			continue
 		}
 		createReq := map[string]interface{}{
-			"vectors": map[string]interface{}{
+"vectors": map[string]interface{}{
 				"size":     col.vectorSize,
 				"distance": "Cosine",
 			},
@@ -110,6 +110,17 @@ func (c *Client) InitializeCollections() error {
 			return fmt.Errorf("create collection %s: %w", col.name, err)
 		}
 		log.Printf("Created Qdrant collection: %s", col.name)
+		// Create payload index on bot_id so filtered search works without errors.
+		indexReq := map[string]interface{}{
+			"name":  "bot_id",
+			"type":  "keyword",
+			"index": true,
+		}
+		if _, err := c.doRequest(ctx, "PUT", "/collections/"+col.name+"/index", indexReq); err != nil {
+			log.Printf("Warning: failed to create bot_id index on %s: %v", col.name, err)
+		} else {
+			log.Printf("Created payload index on bot_id for collection: %s", col.name)
+		}
 	}
 	return nil
 }

@@ -3,12 +3,15 @@ package utils
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"os"
@@ -16,6 +19,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // ChunkText splits text into chunks of specified size with overlap
@@ -100,6 +105,18 @@ func GenerateAPIKey() string {
 	return hex.EncodeToString(bytes)
 }
 
+// GenerateUUID creates a random RFC 4122 version 4 UUID string.
+func GenerateUUID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	// Set version (4) and variant (random) bits per RFC 4122.
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
+}
+
 // OpenRouterClient wraps an OpenRouter / OpenAI-compatible LLM API.
 type OpenRouterClient struct {
 	apiKey         string
@@ -161,7 +178,7 @@ func NewOpenRouterClient(apiKey, baseURL string) *OpenRouterClient {
 	return &OpenRouterClient{
 		apiKey:         apiKey,
 		baseURL:        baseURL,
-		client:         &http.Client{Timeout: 120 * time.Second},
+	client:         &http.Client{Timeout: 180 * time.Second},
 		embeddingModel: "openai/text-embedding-3-small",
 	}
 }
@@ -235,8 +252,8 @@ func (c *OpenRouterClient) GenerateChat(ctx context.Context, req ChatRequest) (*
 
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	httpReq.Header.Set("HTTP-Referer", "https://chatflow.app")
-	httpReq.Header.Set("X-Title", "ChatFlow")
+	httpReq.Header.Set("HTTP-Referer", "https://flowchat.app")
+	httpReq.Header.Set("X-Title", "FlowChat")
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
@@ -272,8 +289,8 @@ func (c *OpenRouterClient) GenerateChatStream(ctx context.Context, req ChatReque
 
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	httpReq.Header.Set("HTTP-Referer", "https://chatflow.app")
-	httpReq.Header.Set("X-Title", "ChatFlow")
+	httpReq.Header.Set("HTTP-Referer", "https://flowchat.app")
+	httpReq.Header.Set("X-Title", "FlowChat")
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
@@ -321,6 +338,182 @@ func (c *OpenRouterClient) GenerateImageDescription(ctx context.Context, imageDa
 		return resp.Choices[0].Message.Content, nil
 	}
 	return "", fmt.Errorf("no response from vision model")
+}
+
+// Embedder is the provider-agnostic contract for producing text embeddings.
+// Cohere, OpenAI, Google, xAI, Voyage, Jina etc. can implement this so they
+// are swapped via configuration without touching the handlers.
+// inputType is "search_document" for documents/chunks and "search_query"
+// for user questions (Cohere embed-v4.0 requires input_type).
+type Embedder interface {
+	GenerateEmbeddings(ctx context.Context, texts []string, inputType string) ([][]float32, error)
+}
+
+// CohereClient wraps the Cohere v2 embed API. It supports batched requests,
+// retries 429/5xx responses with exponential backoff, a configurable timeout
+// via its HTTP client, structured logging, strong typing and descriptive
+// errors. Keys are never hard-coded: they come from configuration.
+//
+// Note: Cohere embed-v4.0 produces 1536-dim vectors, which exactly matches the
+// Qdrant "knowledge_chunks" collection (Cosine, 1536) - no padding or
+// collection recreation is required.
+type CohereClient struct {
+	apiKey         string
+	baseURL        string
+	model          string
+	httpClient     *http.Client
+	maxRetries     int
+	initialBackoff time.Duration
+	maxBackoff     time.Duration
+}
+
+// cohereEmbedRequest is the body sent to POST /v2/embed.
+type cohereEmbedRequest struct {
+	Model          string   `json:"model"`
+	InputType      string   `json:"input_type"`
+	Texts          []string `json:"texts"`
+	EmbeddingTypes []string `json:"embedding_types"`
+}
+
+// cohereEmbedResponse models the relevant parts of the Cohere /v2/embed response.
+type cohereEmbedResponse struct {
+	Embeddings struct {
+		Float [][]float32 `json:"float"`
+	} `json:"embeddings"`
+}
+
+// NewCohereClient creates a Cohere embed client. apiKey is read from config
+// (never hard-coded in source).
+func NewCohereClient(apiKey, baseURL string) *CohereClient {
+	if baseURL == "" {
+		baseURL = "https://api.cohere.com/v2"
+	}
+	return &CohereClient{
+		apiKey:         apiKey,
+		baseURL:        baseURL,
+		model:          "embed-v4.0",
+		httpClient:     &http.Client{Timeout: 120 * time.Second},
+		maxRetries:     5,
+		initialBackoff: 500 * time.Millisecond,
+		maxBackoff:     8 * time.Second,
+	}
+}
+
+// WithModel sets the embedding model (default embed-v4.0).
+func (c *CohereClient) WithModel(model string) *CohereClient {
+	if model != "" {
+		c.model = model
+	}
+	return c
+}
+
+// GenerateEmbeddings creates embeddings for texts using Cohere.
+// inputType must be "search_document" (documents/chunks) or "search_query"
+// (user questions). Cohere accepts multiple texts per request; large batches
+// are split into chunks of maxBatch (96) for reliability.
+func (c *CohereClient) GenerateEmbeddings(ctx context.Context, texts []string, inputType string) ([][]float32, error) {
+	if len(texts) == 0 {
+		return nil, nil
+	}
+	if inputType == "" {
+		inputType = "search_document"
+	}
+
+	const maxBatch = 96
+	var embeddings [][]float32
+
+	for i := 0; i < len(texts); i += maxBatch {
+		end := i + maxBatch
+		if end > len(texts) {
+			end = len(texts)
+		}
+		batch := texts[i:end]
+
+		vecs, err := c.embedBatch(ctx, batch, inputType)
+		if err != nil {
+			return nil, err
+		}
+		embeddings = append(embeddings, vecs...)
+	}
+
+	if len(embeddings) != len(texts) {
+		return nil, fmt.Errorf("cohere: embedding count mismatch (requested %d, got %d)", len(texts), len(embeddings))
+	}
+
+	log.Printf("cohere: generated %d embeddings (model=%s, input_type=%s)", len(embeddings), c.model, inputType)
+	return embeddings, nil
+}
+
+// embedBatch sends one Cohere /embed request for a batch of texts, retrying
+// 429 and 5xx responses with exponential backoff.
+func (c *CohereClient) embedBatch(ctx context.Context, texts []string, inputType string) ([][]float32, error) {
+	body := cohereEmbedRequest{
+		Model:          c.model,
+		InputType:      inputType,
+		Texts:          texts,
+		EmbeddingTypes: []string{"float"},
+	}
+
+	jsonData, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal cohere request: %w", err)
+	}
+
+	url := c.baseURL + "/embed"
+	backoff := c.initialBackoff
+
+	for attempt := 0; attempt <= c.maxRetries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create cohere request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, fmt.Errorf("cohere request cancelled: %w", ctx.Err())
+			}
+			return nil, fmt.Errorf("cohere request failed: %w", err)
+		}
+
+		// Retry on rate-limit / transient server errors.
+		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+			resp.Body.Close()
+			if attempt == c.maxRetries {
+				return nil, fmt.Errorf("cohere embed failed after %d retries (status %d)", c.maxRetries, resp.StatusCode)
+			}
+			select {
+			case <-ctx.Done():
+				return nil, fmt.Errorf("cohere request cancelled: %w", ctx.Err())
+			case <-time.After(backoff):
+			}
+			backoff *= 2
+			if backoff > c.maxBackoff {
+				backoff = c.maxBackoff
+			}
+			continue
+		}
+
+		defer resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			respBody, _ := io.ReadAll(resp.Body)
+			return nil, fmt.Errorf("cohere embed request failed (status %d): %s", resp.StatusCode, string(respBody))
+		}
+
+		var cr cohereEmbedResponse
+		if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
+			return nil, fmt.Errorf("failed to decode cohere response: %w", err)
+		}
+		if len(cr.Embeddings.Float) == 0 {
+			return nil, fmt.Errorf("cohere: no embeddings returned in response")
+		}
+		return cr.Embeddings.Float, nil
+	}
+
+	return nil, fmt.Errorf("cohere embed failed: exhausted retries")
 }
 
 // CosineSimilarity calculates cosine similarity between two vectors
@@ -382,4 +575,95 @@ func ReadFile(path string) (string, error) {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}
 	return string(data), nil
+}
+
+// HashPassword hashes a password using bcrypt.
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}
+
+// VerifyPassword compares a bcrypt-hashed password with a plain-text password.
+func VerifyPassword(hashedPassword, password string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+}
+
+// JWTClaims holds the claims embedded in locally-issued JWT tokens.
+// HS256 is used (no external JWT library required) so tokens are issued
+// and verified entirely within the backend via the shared JWT_SECRET.
+type JWTClaims struct {
+	UserID   string `json:"user_id"`
+	Email    string `json:"email"`
+	IssuedAt int64  `json:"iat"`
+	Expiry   int64  `json:"exp"`
+}
+
+// GenerateToken creates a signed HS256 JWT for local authentication.
+// The token carries user_id, email, iat and exp claims and is signed with the
+// provided secret using HMAC-SHA256.
+func GenerateToken(secret, userID, email string) (string, error) {
+	claims := JWTClaims{
+		UserID:   userID,
+		Email:    email,
+		IssuedAt: time.Now().Unix(),
+		Expiry:   time.Now().Add(24 * time.Hour).Unix(),
+	}
+
+	header := map[string]interface{}{"alg": "HS256", "typ": "JWT"}
+	headerJSON, err := json.Marshal(header)
+	if err != nil {
+		return "", fmt.Errorf("marshal jwt header: %w", err)
+	}
+	claimsJSON, err := json.Marshal(claims)
+	if err != nil {
+		return "", fmt.Errorf("marshal jwt claims: %w", err)
+	}
+
+	encodedHeader := base64.RawURLEncoding.EncodeToString(headerJSON)
+	encodedClaims := base64.RawURLEncoding.EncodeToString(claimsJSON)
+	signingInput := encodedHeader + "." + encodedClaims
+
+	sig := hmac.New(sha256.New, []byte(secret))
+	sig.Write([]byte(signingInput))
+	encodedSig := base64.RawURLEncoding.EncodeToString(sig.Sum(nil))
+
+	return signingInput + "." + encodedSig, nil
+}
+
+// VerifyToken verifies an HS256 JWT signed with the given secret and returns
+// its claims. It checks the signature, decodes the payload, and validates
+// the expiry.
+func VerifyToken(secret, token string) (*JWTClaims, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid token format")
+	}
+
+	signingInput := parts[0] + "." + parts[1]
+	expectedSig := hmac.New(sha256.New, []byte(secret))
+	expectedSig.Write([]byte(signingInput))
+	expectedStr := base64.RawURLEncoding.EncodeToString(expectedSig.Sum(nil))
+
+	if !hmac.Equal([]byte(expectedStr), []byte(parts[2])) {
+		return nil, fmt.Errorf("invalid token signature")
+	}
+
+	decoded, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("decode jwt payload: %w", err)
+	}
+
+	var claims JWTClaims
+	if err := json.Unmarshal(decoded, &claims); err != nil {
+		return nil, fmt.Errorf("unmarshal jwt claims: %w", err)
+	}
+
+	if time.Now().Unix() > claims.Expiry {
+		return nil, fmt.Errorf("token expired")
+	}
+
+	return &claims, nil
 }

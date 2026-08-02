@@ -1,11 +1,12 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
-	"chatflow/backend/internal/qdrant"
-	"chatflow/backend/internal/supabase"
-	"chatflow/backend/internal/utils"
+	"flowchat/backend/internal/qdrant"
+	"flowchat/backend/internal/supabase"
+	"flowchat/backend/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -74,6 +75,7 @@ func (h *BotHandler) CreateBot(c *gin.Context) {
 
 	inserted, err := h.supabaseClient.From("bots").InsertReturning(data)
 	if err != nil {
+		log.Printf("[bot] CreateBot error: %v user_id=%v slug=%s", err, userID, slug)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create bot"})
 		return
 	}
@@ -126,7 +128,7 @@ func (h *BotHandler) ListBots(c *gin.Context) {
 		return
 	}
 
-	var bots []BotResponse
+	bots := []BotResponse{}
 	for _, row := range results {
 		bots = append(bots, BotResponse{
 			ID:           getString(row, "id"),
@@ -281,12 +283,12 @@ func WidgetHandler(c *gin.Context) {
 	widgetJS := `
 (function() {
   var script = document.createElement('script');
-  script.src = 'https://cdn.chatflow.app/widget-v1.js';
+  script.src = 'https://cdn.flowchat.app/widget-v1.js';
   script.onload = function() {
-    if (window.ChatFlowWidget) {
-      window.ChatFlowWidget.init({
+    if (window.FlowChatWidget) {
+      window.FlowChatWidget.init({
         botId: '` + botID + `',
-        containerId: 'chatflow-widget'
+        containerId: 'flowchat-widget'
       });
     }
   };
