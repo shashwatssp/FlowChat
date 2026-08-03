@@ -7,7 +7,7 @@ export default function Home() {
       {/* Header */}
       <header className="container mx-auto px-4 py-6">
         <nav className="flex justify-between items-center">
-          <div className="text-2xl font-bold text-primary-600">ChatFlow</div>
+          <div className="text-2xl font-bold text-primary-600">FlowChat</div>
           <div className="flex gap-4">
             <Link href="/login" className="px-4 py-2 text-gray-600 hover:text-gray-900">
               Login
@@ -108,7 +108,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-gray-400">© 2026 ChatFlow. Built with ❤️ for developers.</p>
+          <p className="text-gray-400">© 2026 FlowChat. Built with ❤️ for developers.</p>
         </div>
       </footer>
     </main>

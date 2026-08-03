@@ -25,7 +25,7 @@ export default function DashboardNav() {
   return (
     <nav className="w-64 bg-white border-r h-screen sticky top-0 overflow-y-auto">
       <div className="p-4">
-        <div className="text-xl font-bold text-primary-600 mb-6">ChatFlow</div>
+        <div className="text-xl font-bold text-primary-600 mb-6">FlowChat</div>
         <ul className="space-y-2">
           {navItems.map((item) => {
             const isActive = pathname === item.href;

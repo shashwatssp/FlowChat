@@ -18,7 +18,7 @@ export default function ChatPage() {
               <Bot className="w-6 h-6 text-primary-600" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold">ChatFlow Assistant</h1>
+              <h1 className="text-lg font-semibold">FlowChat Assistant</h1>
               <p className="text-sm text-gray-500">Powered by AI</p>
             </div>
           </div>

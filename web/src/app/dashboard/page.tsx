@@ -35,7 +35,7 @@ export default function DashboardPage() {
   const fetchBots = async () => {
     try {
       const response = await botApi.list();
-      setBots(response.data);
+      setBots(Array.isArray(response.data) ? response.data : []);
     } catch (error: any) {
       if (error.response?.status === 401) {
         localStorage.removeItem('token');
@@ -78,7 +78,7 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="bg-white shadow">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-primary-600">ChatFlow</h1>
+          <h1 className="text-2xl font-bold text-primary-600">FlowChat</h1>
           <div className="flex gap-4">
             <button
               onClick={() => setShowCreateModal(true)}

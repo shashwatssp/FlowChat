@@ -6,7 +6,7 @@ import { Toaster } from 'react-hot-toast';
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "ChatFlow - Personal AI Assistant Platform",
+  title: "FlowChat - Personal AI Assistant Platform",
   description: "Create your own AI-powered chatbot with custom knowledge base",
 };
 
