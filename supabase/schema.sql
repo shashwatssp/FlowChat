@@ -1,4 +1,4 @@
-﻿-- ChatFlow Supabase Database Schema
+﻿-- FlowChat Supabase Database Schema
 -- ====================================
 
 -- Enable extensions
@@ -16,13 +16,18 @@ end;
 $$ language 'plpgsql';
 
 -- ====================================
--- Users Table (profile data for Supabase Auth users)
+-- Users Table
 -- ====================================
+-- The id column has a server-side default (uuid_generate_v4) so inserts that
+-- omit it (e.g. the oauth handle_new_user trigger) still succeed, while the
+-- local-auth Register path can also supply an explicit id. The auth.users FK
+-- reference is intentionally dropped so local-auth direct inserts are allowed.
 create table if not exists users (
-    id uuid references auth.users on delete cascade primary key,
+    id uuid primary key default uuid_generate_v4(),
     email text unique not null,
     full_name text,
     avatar_url text,
+    password_hash text,
     created_at timestamp with time zone default now(),
     updated_at timestamp with time zone default now()
 );
