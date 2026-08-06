@@ -99,8 +99,8 @@ func main() {
 	authHandler := handlers.NewAuthHandler(supabaseClient, cfg.JWTSecret, cfg.SupabaseURL)
 	botHandler := handlers.NewBotHandler(supabaseClient, qdrantClient)
 	cohereClient := utils.NewCohereClient(cfg.CohereAPIKey, cfg.CohereBaseURL).WithModel(cfg.CohereEmbeddingModel)
-	knowledgeHandler := handlers.NewKnowledgeHandler(supabaseClient, qdrantClient, cfg.OpenRouterAPIKey, cfg.ChunkSize, cfg.ChunkOverlap, cfg.QuestionModel, cfg.VisionModel, cfg.OpenRouterBaseURL, cfg.EmbeddingModel, cohereClient)
-	chatHandler := handlers.NewChatHandler(supabaseClient, qdrantClient, cfg.OpenRouterAPIKey, cfg.OpenRouterBaseURL, cfg.ChatModel, cfg.EmbeddingModel, cohereClient)
+	knowledgeHandler := handlers.NewKnowledgeHandler(supabaseClient, qdrantClient, cfg.OpenRouterAPIKey, cfg.ChunkSize, cfg.ChunkOverlap, cfg.QuestionModel, cfg.VisionModel, cfg.OpenRouterBaseURL, cfg.EmbeddingModel, cfg.QdrantEmbeddingModel, cohereClient, cfg.FirecrawlAPIKey)
+	chatHandler := handlers.NewChatHandler(supabaseClient, qdrantClient, cfg.OpenRouterAPIKey, cfg.OpenRouterBaseURL, cfg.ChatModel, cfg.EmbeddingModel, cfg.QdrantEmbeddingModel, cohereClient)
 
 	// Routes
 	api := router.Group("/api/v1")
@@ -137,16 +137,19 @@ func main() {
 				bots.GET("/:botID/stats", botHandler.GetBotStats)
 			}
 
-			// Knowledge management
-			knowledge := protected.Group("/knowledge")
-			{
-				knowledge.POST("/upload", knowledgeHandler.UploadFile)
-				knowledge.POST("/scrape", knowledgeHandler.ScrapeWebsite)
-				knowledge.POST("/suggest-questions", knowledgeHandler.SuggestQuestions)
-				knowledge.POST("/qa", knowledgeHandler.SaveQA)
-				knowledge.GET("/:botID", knowledgeHandler.ListSources)
-				knowledge.DELETE("/:sourceID", knowledgeHandler.DeleteSource)
-			}
+// Knowledge management
+knowledge := protected.Group("/knowledge")
+					{
+					knowledge.POST("/upload", knowledgeHandler.UploadFile)
+					knowledge.POST("/scrape", knowledgeHandler.ScrapeWebsite)
+					knowledge.POST("/refine", knowledgeHandler.RefineVoice)
+					knowledge.POST("/suggest-questions", knowledgeHandler.SuggestQuestions)
+knowledge.POST("/qa", knowledgeHandler.SaveQA)
+					knowledge.POST("/save-text", knowledgeHandler.SaveText)
+					knowledge.POST("/:sourceID/reindex", knowledgeHandler.ReindexSource)
+					knowledge.GET("/:botID", knowledgeHandler.ListSources)
+					knowledge.DELETE("/:sourceID", knowledgeHandler.DeleteSource)
+				}
 
 			// Conversations
 			conversations := protected.Group("/conversations")

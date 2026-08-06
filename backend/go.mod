@@ -1,11 +1,14 @@
 module flowchat/backend
 
-go 1.22
+go 1.24.1
+
+toolchain go1.24.5
 
 require (
 	github.com/gin-contrib/cors v1.5.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/joho/godotenv v1.5.1
+	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	golang.org/x/crypto v0.14.0
 )
 
