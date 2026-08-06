@@ -1,13 +1,16 @@
 package handlers
 
 import (
-	"bufio"
-	"context"
-	"fmt"
-	"log"
-	"net/http"
-	"strings"
-	"time"
+"bufio"
+"context"
+"encoding/json"
+"fmt"
+"io"
+"log"
+"net/http"
+"regexp"
+"strings"
+"time"
 
 	"flowchat/backend/internal/qdrant"
 	"flowchat/backend/internal/supabase"
@@ -17,24 +20,26 @@ import (
 )
 
 type ChatHandler struct {
-	supabaseClient *supabase.Client
-	qdrantClient   *qdrant.Client
-	openrouterKey  string
-	baseURL        string
-	chatModel      string
-	embeddingModel string
-	cohereClient   utils.Embedder
+	supabaseClient        *supabase.Client
+	qdrantClient          *qdrant.Client
+	openrouterKey         string
+	baseURL               string
+	chatModel             string
+	embeddingModel        string
+	cohereClient          utils.Embedder
+	qdrantEmbeddingModel  string
 }
 
-func NewChatHandler(client *supabase.Client, qdrant *qdrant.Client, openrouterKey, baseURL, chatModel, embeddingModel string, cohereClient utils.Embedder) *ChatHandler {
+func NewChatHandler(client *supabase.Client, qdrant *qdrant.Client, openrouterKey, baseURL, chatModel, embeddingModel, qdrantEmbeddingModel string, cohereClient utils.Embedder) *ChatHandler {
 	return &ChatHandler{
-		supabaseClient: client,
-		qdrantClient:   qdrant,
-		openrouterKey:  openrouterKey,
-		baseURL:        baseURL,
-		chatModel:      chatModel,
-		embeddingModel: embeddingModel,
-		cohereClient:   cohereClient,
+		supabaseClient:        client,
+		qdrantClient:          qdrant,
+		openrouterKey:         openrouterKey,
+		baseURL:               baseURL,
+		chatModel:             chatModel,
+		embeddingModel:        embeddingModel,
+		cohereClient:          cohereClient,
+		qdrantEmbeddingModel:  qdrantEmbeddingModel,
 	}
 }
 
@@ -82,7 +87,8 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 	botID := getString(bot, "id")
 	botName := getString(bot, "name")
 	systemPrompt := getString(bot, "system_prompt")
-	log.Printf("[chat] STEP 2: bot found id=%s name=%s", botID, botName)
+	botOwnerID := getString(bot, "user_id") // used for the NOT NULL user_id on conversations
+	log.Printf("[chat] STEP 2: bot found id=%s name=%s owner=%s", botID, botName, botOwnerID)
 
 	// Get or create conversation
 	conversationID := req.ConversationID
@@ -93,10 +99,15 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create conversation"})
 			return
 		}
+		// The conversations table uses started_at / last_message_at
+		// (both DEFAULT now()) — it has NO created_at column, so we
+		// must not send one in the Insert payload.
+		// user_id is NOT NULL on the live schema, so we set it to the
+		// bot owner's id (the conversation was initiated through their bot).
 		convData := map[string]interface{}{
-			"id":         conversationID,
-			"bot_id":     botID,
-			"created_at": time.Now().Format(time.RFC3339),
+			"id":      conversationID,
+			"bot_id":  botID,
+			"user_id": botOwnerID,
 		}
 		log.Printf("[chat] STEP 3: creating new conversation id=%s", conversationID)
 		if _, insertErr := h.supabaseClient.From("conversations").Insert(convData); insertErr != nil {
@@ -109,39 +120,18 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 		log.Printf("[chat] STEP 3: using existing conversation id=%s", conversationID)
 	}
 
-	// Generate the user's query embedding via Cohere (search_query).
-	// Falls back to retrieval-less answering if embeddings are unavailable,
-	// mirroring the Qdrant fallback below.
-	log.Printf("[chat] STEP 4: starting Cohere embeddings for message=%q", req.Message)
-	var queryEmbeddings [][]float32
-	if h.cohereClient != nil {
-		queryEmbeddings, err = h.cohereClient.GenerateEmbeddings(c.Request.Context(), []string{req.Message}, "search_query")
-		if err != nil {
-			log.Printf("[chat] WARN: cohere query embedding failed (%v); answering without knowledge context", err)
-		} else {
-			log.Printf("[chat] STEP 4 done: got %d embedding(s) dim=%d", len(queryEmbeddings), len(queryEmbeddings[0]))
-		}
-	} else {
-		log.Printf("[chat] STEP 4 skipped: cohereClient is nil")
+	// Search Qdrant for relevant knowledge using native inference text-to-vector.
+	// Qdrant generates the embedding internally — no separate embedding API call needed.
+	filter := map[string]interface{}{
+		"bot_id": botID,
 	}
-
-	// Search Qdrant for relevant knowledge (only when we have an embedding)
-	var searchResults []qdrant.SearchResult
-	if len(queryEmbeddings) > 0 {
-		filter := map[string]interface{}{
-			"bot_id": botID,
-		}
-		log.Printf("[chat] STEP 5: starting Qdrant search on collection=knowledge_chunks")
-		searchResults, err = h.qdrantClient.Search(c.Request.Context(), "knowledge_chunks", queryEmbeddings[0], 5, filter)
-		if err != nil {
-			log.Printf("[chat] STEP 5 error: Qdrant search failed (%v); continuing without context", err)
-			searchResults = []qdrant.SearchResult{}
-		} else {
-			log.Printf("[chat] STEP 5 done: %d search results", len(searchResults))
-		}
-	} else {
-		log.Printf("[chat] STEP 5 skipped: no query embeddings")
+	log.Printf("[chat] STEP 4: Qdrant native inference search collection=knowledge_chunks model=%s", h.qdrantEmbeddingModel)
+	searchResults, err := h.qdrantClient.SearchDocuments(c.Request.Context(), "knowledge_chunks", h.qdrantEmbeddingModel, req.Message, 5, filter)
+	if err != nil {
+		log.Printf("[chat] STEP 4 error: Qdrant search failed (%v); continuing without context", err)
 		searchResults = []qdrant.SearchResult{}
+	} else {
+		log.Printf("[chat] STEP 4 done: %d search results", len(searchResults))
 	}
 
 	// Build context from search results
@@ -205,7 +195,6 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 		return
 	}
 
-
 	// Non-streaming response
 	// Chat completion via the OpenAI-compatible client.
 	llm := utils.NewOpenRouterClient(h.openrouterKey, h.baseURL)
@@ -215,6 +204,7 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 		Stream:      false,
 		Temperature: 0.7,
 		MaxTokens:   512,
+		Reason:      map[string]interface{}{"enabled": true},
 	}
 
 	chatResp, err := llm.GenerateChat(c.Request.Context(), chatReq)
@@ -230,6 +220,7 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 	if len(chatResp.Choices) > 0 {
 		response = chatResp.Choices[0].Message.Content
 	}
+	response = cleanResponse(response)
 
 	// Save messages to database
 	if err := h.saveMessage(c.Request.Context(), conversationID, botID, "user", req.Message); err != nil {
@@ -240,7 +231,9 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 	}
 
 	// Update usage count
-	h.updateBotUsage(c.Request.Context(), botID)
+	if err := h.updateBotUsage(c.Request.Context(), botID); err != nil {
+		log.Printf("[chat] WARN: updateBotUsage failed bot_id=%s err=%v", botID, err)
+	}
 
 	c.JSON(http.StatusOK, ChatResponse{
 		Response:       response,
@@ -260,10 +253,11 @@ func (h *ChatHandler) handleStreamChat(c *gin.Context, messages []map[string]int
 		Stream:      true,
 		Temperature: 0.7,
 		MaxTokens:   512,
+		Reason:      map[string]interface{}{"enabled": true},
 	}
 
-	embedder := utils.NewOpenRouterClient(h.openrouterKey, h.baseURL)
-	stream, err := embedder.GenerateChatStream(c.Request.Context(), chatReq)
+	client := utils.NewOpenRouterClient(h.openrouterKey, h.baseURL)
+	stream, err := client.GenerateChatStream(c.Request.Context(), chatReq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start streaming"})
 		return
@@ -271,6 +265,10 @@ func (h *ChatHandler) handleStreamChat(c *gin.Context, messages []map[string]int
 	defer stream.Close()
 
 	scanner := bufio.NewScanner(stream)
+	// Increase buffer to handle large SSE lines (reasoning payloads can be large)
+	scanBuf := make([]byte, 0, 1024*1024)
+	scanner.Buffer(scanBuf, 1024*1024)
+
 	var fullResponse strings.Builder
 
 	for scanner.Scan() {
@@ -279,14 +277,111 @@ func (h *ChatHandler) handleStreamChat(c *gin.Context, messages []map[string]int
 			continue
 		}
 
-		// Send the chunk to client
-		fmt.Fprintf(c.Writer, "data: %s\n\n", line)
-		c.Writer.Flush()
+		// OpenRouter sends standard SSE lines: "data: {json}".
+		// Some providers also send comment lines prefixed with ':' that may
+		// embed JSON (e.g. ": OPENROUTER PROCESSING{json}"). Strip the prefix
+		// so we never double-prepend "data:" when forwarding.
+		payload := line
+		if strings.HasPrefix(line, "data:") {
+			payload = strings.TrimSpace(line[len("data:"):])
+		}
 
-		// Collect full response for saving
-		if strings.Contains(line, "\"content\"") {
-			// Simple extraction - in production, parse JSON properly
-			fullResponse.WriteString(line)
+		// Handle SSE comment lines that embed JSON after the comment prefix
+		if strings.HasPrefix(payload, ":") {
+			if jsonIdx := strings.Index(payload, "{"); jsonIdx >= 0 {
+				payload = strings.TrimSpace(payload[jsonIdx:])
+			} else {
+				continue
+			}
+		}
+
+		// Skip empty, [DONE], or non-JSON markers
+		if payload == "" || payload == "[DONE]" || payload == "data:" {
+			continue
+		}
+
+		// Parse the SSE event - handle both standard JSON chunks and
+		// chunks that contain trailing raw text after the JSON object
+		// (some reasoning models, e.g. gpt-oss-20b, emit content as raw
+		// text after the final JSON reasoning chunk).
+		var evt struct {
+			Choices []struct {
+				Delta struct {
+					Content          string                     `json:"content"`
+					Reasoning        string                     `json:"reasoning"`
+					ReasoningDetails []map[string]interface{}  `json:"reasoning_details"`
+				} `json:"delta"`
+				FinishReason       string `json:"finish_reason"`
+				NativeFinishReason string `json:"native_finish_reason"`
+			} `json:"choices"`
+			Model    string `json:"model"`
+			Provider string `json:"provider"`
+		}
+
+		// Try direct JSON unmarshal first (the common case)
+		if jsonErr := json.Unmarshal([]byte(payload), &evt); jsonErr == nil && len(evt.Choices) > 0 {
+			content := evt.Choices[0].Delta.Content
+			reasoningLen := len(evt.Choices[0].Delta.Reasoning)
+			log.Printf("[chat] SSE chunk: model=%s provider=%s content_len=%d reasoning_len=%d finish=%s",
+				evt.Model, evt.Provider, len(content), reasoningLen, evt.Choices[0].FinishReason)
+			if content != "" {
+				fullResponse.WriteString(content)
+			}
+			// Forward the SSE event to the client
+			fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
+			c.Writer.Flush()
+		} else {
+			// json.Unmarshal failed - the payload may contain JSON
+			// followed by trailing raw text (e.g. {"json":...}Hello!).
+			// Use json.Decoder to parse just the JSON portion, then
+			// extract any remaining text as content.
+			decoder := json.NewDecoder(strings.NewReader(payload))
+			if decodeErr := decoder.Decode(&evt); decodeErr == nil && len(evt.Choices) > 0 {
+				content := evt.Choices[0].Delta.Content
+				log.Printf("[chat] SSE chunk (decoder): model=%s content_len=%d finish=%s",
+					evt.Model, len(content), evt.Choices[0].FinishReason)
+				if content != "" {
+					fullResponse.WriteString(content)
+				}
+				// Forward clean JSON (without trailing raw text)
+				cleanJSON, mErr := json.Marshal(evt)
+				if mErr == nil {
+					fmt.Fprintf(c.Writer, "data: %s\n\n", string(cleanJSON))
+					c.Writer.Flush()
+				}
+				// Extract and forward any trailing raw text as content
+				if remaining, rerr := io.ReadAll(decoder.Buffered()); rerr == nil && len(remaining) > 0 {
+					trailing := strings.TrimSpace(string(remaining))
+					if trailing != "" && !strings.HasPrefix(trailing, "{") {
+						log.Printf("[chat] SSE trailing text: len=%d", len(trailing))
+						fullResponse.WriteString(trailing)
+						trailingEvt := map[string]interface{}{
+							"choices": []map[string]interface{}{
+								{"delta": map[string]interface{}{"content": trailing}},
+							},
+						}
+						trailingJSON, tErr := json.Marshal(trailingEvt)
+						if tErr == nil {
+							fmt.Fprintf(c.Writer, "data: %s\n\n", string(trailingJSON))
+							c.Writer.Flush()
+						}
+					}
+				}
+			} else {
+				// Not JSON at all - treat as raw text content
+				log.Printf("[chat] SSE raw text payload: len=%d", len(payload))
+				fullResponse.WriteString(payload)
+				rawEvt := map[string]interface{}{
+					"choices": []map[string]interface{}{
+						{"delta": map[string]interface{}{"content": payload}},
+					},
+				}
+				rawJSON, rErr := json.Marshal(rawEvt)
+				if rErr == nil {
+					fmt.Fprintf(c.Writer, "data: %s\n\n", string(rawJSON))
+					c.Writer.Flush()
+				}
+			}
 		}
 	}
 
@@ -300,8 +395,12 @@ func (h *ChatHandler) handleStreamChat(c *gin.Context, messages []map[string]int
 		if err := h.saveMessage(context.Background(), conversationID, botID, "user", extractUserMessage(messages)); err != nil {
 			log.Printf("[chat] WARN: async saveMessage (user) failed conv=%s bot_id=%s err=%v", conversationID, botID, err)
 		}
-		if err := h.saveMessage(context.Background(), conversationID, botID, "assistant", fullResponse.String()); err != nil {
+		if err := h.saveMessage(context.Background(), conversationID, botID, "assistant", cleanResponse(fullResponse.String())); err != nil {
 			log.Printf("[chat] WARN: async saveMessage (assistant) failed conv=%s bot_id=%s err=%v", conversationID, botID, err)
+		}
+		// Increment usage count so streamed chats are counted too
+		if err := h.updateBotUsage(context.Background(), botID); err != nil {
+			log.Printf("[chat] WARN: async updateBotUsage failed bot_id=%s err=%v", botID, err)
 		}
 	}()
 }
@@ -342,11 +441,15 @@ func (h *ChatHandler) saveMessage(ctx context.Context, conversationID, botID, ro
 	return err
 }
 
-func (h *ChatHandler) updateBotUsage(ctx context.Context, botID string) {
+func (h *ChatHandler) updateBotUsage(ctx context.Context, botID string) error {
 	// Increment usage count using Supabase RPC function
-	h.supabaseClient.From("bots").RPC("increment_bot_usage", map[string]interface{}{
+	_, err := h.supabaseClient.From("bots").RPC("increment_bot_usage", map[string]interface{}{
 		"bot_id": botID,
 	})
+	if err != nil {
+		log.Printf("[chat] WARN: updateBotUsage RPC failed bot_id=%s err=%v", botID, err)
+	}
+	return err
 }
 
 func extractUserMessage(messages []map[string]interface{}) string {
@@ -360,12 +463,44 @@ func extractUserMessage(messages []map[string]interface{}) string {
 	return ""
 }
 
-func formatSources(sources []Source) string {
-	// Simple JSON formatting
-	var parts []string
-	for _, s := range sources {
-		parts = append(parts, fmt.Sprintf(`{"content":"%s","score":%.2f,"name":"%s"}`,
-			strings.ReplaceAll(s.Content, `"`, `\"`), s.Score, s.Name))
+// cleanResponse tidies up the LLM's raw output so the end user gets a
+// well-formatted, tidy answer. It:
+//   1. Strips leading/trailing whitespace and stray control characters.
+//   2. Removes common LLM leakage prefixes such as "Assistant:" or "Bot:".
+//   3. Collapses 3+ consecutive newlines into exactly two.
+//   4. Trims trailing whitespace on every line.
+func cleanResponse(text string) string {
+	// 1 — strip stray control characters (except tab/newline)
+	text = regexp.MustCompile(`[[:cntrl:]]`).ReplaceAllString(text, "")
+	// 2 — remove leading role prefixes like "Assistant:" / "Assistant -" / "Bot:"
+	text = regexp.MustCompile(`(?i)^(?:assistant|bot|ai)\s*[:\-]\s*\n*`).ReplaceAllString(text, "")
+	// 3 — collapse 3+ newlines to exactly two
+	text = regexp.MustCompile(`\n{3,}`).ReplaceAllString(text, "\n\n")
+	// 4 — trim trailing whitespace on each line, then leading/trailing blank lines
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " \t")
 	}
-	return "[" + strings.Join(parts, ",") + "]"
+	text = strings.Join(lines, "\n")
+	text = strings.TrimSpace(text)
+	return text
+}
+
+func formatSources(sources []Source) string {
+	// Proper JSON encoding — safe even when source content contains
+	// newlines, quotes, or other special characters.
+	type serializedSource struct {
+		Content string  `json:"content"`
+		Score   float32 `json:"score"`
+		Name    string  `json:"name"`
+	}
+	out := make([]serializedSource, len(sources))
+	for i, s := range sources {
+		out[i] = serializedSource{Content: s.Content, Score: s.Score, Name: s.Name}
+	}
+	data, err := json.Marshal(out)
+	if err != nil {
+		return "[]"
+	}
+	return string(data)
 }

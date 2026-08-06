@@ -30,6 +30,17 @@ DROP POLICY IF EXISTS "Service role can insert users" ON users;
 CREATE POLICY "Service role can insert users" ON users
     FOR INSERT WITH CHECK (true);
 
+-- 6. Make conversations.user_id nullable.
+--    The chat endpoint is public (no auth) — anyone with the bot's
+--    shareable link can chat. There is no authenticated user_id to
+--    insert, so the column must accept NULL.
+ALTER TABLE conversations ALTER COLUMN user_id DROP NOT NULL;
+
+-- 7. The conversations table has NO created_at column. It uses
+--    started_at / last_message_at (both DEFAULT now()). The backend's
+--    chat handler must not send created_at in the Insert payload.
+--    (No DDL needed — just don't send the column.)
+
 -- ============================================================
 -- After running this migration, your users table will have:
 --   id            uuid (default uuid_generate_v4()) — FK to auth.users REMOVED
