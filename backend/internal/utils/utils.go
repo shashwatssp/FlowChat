@@ -23,35 +23,42 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// ChunkText splits text into chunks of specified size with overlap
+// ChunkText splits text into chunks of approximately chunkSize runes
+// (Unicode code points) with overlap runes between consecutive chunks.
+// Working on runes rather than bytes avoids slicing in the middle of a
+// multi-byte UTF-8 sequence, which would produce garbled text.
 func ChunkText(text string, chunkSize, overlap int) []string {
-	if len(text) <= chunkSize {
+	if chunkSize <= 0 {
+		return []string{text}
+	}
+	runes := []rune(text)
+	if len(runes) <= chunkSize {
 		return []string{text}
 	}
 
 	var chunks []string
 	start := 0
 
-	for start < len(text) {
+	for start < len(runes) {
 		end := start + chunkSize
-		if end > len(text) {
-			end = len(text)
+		if end > len(runes) {
+			end = len(runes)
 		}
 
 		// Try to find a sentence boundary to break cleanly
-		if end < len(text) {
+		if end < len(runes) {
 			for i := end; i > start && i > end-50; i-- {
-				if text[i] == '.' || text[i] == '!' || text[i] == '?' {
+				r := runes[i]
+				if r == '.' || r == '!' || r == '?' {
 					end = i + 1
 					break
 				}
 			}
 		}
 
-		chunk := text[start:end]
-		chunks = append(chunks, chunk)
+		chunks = append(chunks, string(runes[start:end]))
 
-		if end >= len(text) {
+		if end >= len(runes) {
 			break
 		}
 
@@ -148,21 +155,26 @@ type ChatRequest struct {
 	Temperature float32                  `json:"temperature"`
 	MaxTokens   int                      `json:"max_tokens"`
 	Tools       []map[string]interface{} `json:"tools,omitempty"`
+	Reason      map[string]interface{}   `json:"reasoning,omitempty"`
 }
 
 type ChatResponse struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int64  `json:"created"`
-	Model   string `json:"model"`
-	Choices []struct {
+	ID       string `json:"id"`
+	Object   string `json:"object"`
+	Created  int64  `json:"created"`
+	Model    string `json:"model"`
+	Provider string `json:"provider,omitempty"`
+	Choices  []struct {
 		Index   int `json:"index"`
 		Message struct {
-			Role      string                   `json:"role"`
-			Content   string                   `json:"content"`
-			ToolCalls []map[string]interface{} `json:"tool_calls,omitempty"`
+			Role             string                     `json:"role"`
+			Content          string                     `json:"content"`
+			Reasoning        string                     `json:"reasoning,omitempty"`
+			ReasoningDetails []map[string]interface{} `json:"reasoning_details,omitempty"`
+			ToolCalls        []map[string]interface{} `json:"tool_calls,omitempty"`
 		} `json:"message"`
-		FinishReason string `json:"finish_reason"`
+		FinishReason       string `json:"finish_reason"`
+		NativeFinishReason string `json:"native_finish_reason,omitempty"`
 	} `json:"choices"`
 	Usage struct {
 		PromptTokens     int `json:"prompt_tokens"`
@@ -178,7 +190,7 @@ func NewOpenRouterClient(apiKey, baseURL string) *OpenRouterClient {
 	return &OpenRouterClient{
 		apiKey:         apiKey,
 		baseURL:        baseURL,
-	client:         &http.Client{Timeout: 180 * time.Second},
+		client:         &http.Client{Timeout: 180 * time.Second},
 		embeddingModel: "openai/text-embedding-3-small",
 	}
 }
