@@ -13,7 +13,7 @@ interface Bot {
   description: string;
   slug: string;
   avatar_url: string;
-  system_prompt: string;
+  system_prompt: string; // Bot instructions (shown as "Bot Instructions" in UI)
   api_key: string;
   usage_count: number;
   created_at: string;
