@@ -11,7 +11,7 @@ interface Conversation {
   id: string;
   bot_id: string;
   bot_name?: string;
-  created_at: string;
+  started_at: string;
   message_count?: number;
 }
 
@@ -62,7 +62,7 @@ export default function ConversationsPage() {
       }
 
       // Sort by created_at descending
-      allConversations.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+allConversations.sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
       setConversations(allConversations);
     } catch (error: any) {
       if (error.response?.status === 401) {
@@ -129,7 +129,7 @@ export default function ConversationsPage() {
                       </p>
                       <div className="flex items-center gap-1 text-xs text-gray-500">
                         <Calendar size={12} />
-                        <span>{new Date(conv.created_at).toLocaleString()}</span>
+<span>{new Date(conv.started_at).toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
