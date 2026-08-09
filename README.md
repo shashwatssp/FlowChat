@@ -34,6 +34,7 @@ FlowChat removes every barrier between a small business and its own AI assistant
 
 - 🎤 **Voice-first setup** — train your bot by simply speaking about your business. The microphone in the chat input captures your voice via the browser's Web Speech API and transcribes it locally — no audio is uploaded or stored.
 - 🔊 **Voice mode toggle** — a dedicated `Volume2` button in the chat input lets the owner enable automatic text-to-speech (TTS) for bot replies. When voice mode is on, every assistant response is spoken aloud through the browser's speech synthesis; when off, TTS is fully disabled, keeping the experience quiet by default. When voice mode is disabled, `useVoiceState({ enableTTS: false })` is passed, which causes it to cancel any TTS during loading — preventing unwanted spoken output.
+- 🎙️ **Voice-to-Knowledge** — speak your business details directly into any dashboard field. The mic converts speech to text at your cursor position, you can read and edit it, optionally refine it with AI, then save it. The saved text is chunked, embedded, and added to your bot's knowledge base instantly — so the bot answers from your latest info.
 - 🧠 **Own knowledge base** — every business gets its own isolated chatbot brain. Knowledge is stored as vectors in **Qdrant**, tagged per-bot by `bot_id`, so no data leaks between businesses. The `knowledge_chunks` collection is a 1,536-dimensional vector space (Cosine distance) — matching the output dimension of the **Cohere embed-v4.0** embedding model exactly, so no padding or dimension adjustment is needed.
 - 📄 **Multi-format training** — upload `.pdf`, `.docx`, `.md`, `.csv`, `.json`, `.txt`, and `.tex`/`.latex` files. PDFs are read with the `github.com/ledongthuc/pdf` Go library; DOCX files are unpacked from their ZIP archive and their `word/document.xml` is parsed to extract text from `<w:t>` elements; LaTeX markup (commands, environments, inline/display math) is stripped via regex to leave readable content. Images are passed through a vision model that describes products, prices, and text.
 - 🔗 **Shareable chat link** — one public URL (`chat.flowchat.app/your-store`), no customer sign-in required. The bot is resolved by its slug and RAG-searched within only that bot's knowledge.
@@ -52,7 +53,7 @@ The backend is agnostic to how text arrives: whether typed, spoken (browser STT)
 
 ---
 
-## Quick Start (For Developers)
+## Quick Start (Setup Guide for Business Owners)
 
 FlowChat is a full-stack app: a **Go** backend (Gin), a **Next.js** frontend, **Supabase** for auth & relational data, **Qdrant** for vector search, **Cohere** for embeddings, and **OpenRouter** / **Groq** for LLM inference. **Firecrawl** powers website scraping with an HTTP fallback when no API key is set.
 
@@ -259,7 +260,7 @@ All endpoints live under `/api/v1`. The backend listens on `:8080` by default.
 |---|---|---|
 | Auth | `POST /api/v1/auth/register`, `/login`, `/oauth/:provider` | public |
 | Bots | `POST /api/v1/bots`, `GET /api/v1/bots`, `GET /bots/public/:slug` | owner (JWT) / public (by slug) |
-| Knowledge | `POST /api/v1/knowledge/upload`, `/scrape`, `/suggest-questions`, `/qa` | owner (JWT) |
+| Knowledge | `POST /api/v1/knowledge/upload`, `/scrape`, `/save-text`, `/suggest-questions`, `/qa` | owner (JWT) |
 | Knowledge | `GET /api/v1/knowledge/:botID`, `DELETE /api/v1/knowledge/:sourceID` | owner (JWT) |
 | Chat | `POST /api/v1/chat/:botSlug` | public (by link) |
 | Conversations | `GET /api/v1/conversations/:botID`, `/:id/messages`, `/:id/feedback` | owner (JWT) |

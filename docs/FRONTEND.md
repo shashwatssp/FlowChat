@@ -56,16 +56,19 @@ front-stage chat:
 - On error, shows a friendly message and a toast.
 
 `ChatInput` (`src/components/chat/ChatInput.tsx`) renders the textarea, the
-**send** button, and a file-attachment button (currently a placeholder
-"Feature coming soon" toast — file upload during chat is not yet wired).
+**send** button, the **mic** button, and the **Volume2** voice-mode toggle. The
+mic captures speech via the browser's `SpeechRecognition` (Web Speech API) and
+inserts the transcript at the cursor position for review before sending; the
+Volume2 toggle controls automatic text-to-speech (TTS) for bot replies. File
+uploads are handled through the **Knowledge tab** in the dashboard
+(`/dashboard/bot/[id]`), not inline in the chat — the input stays focused on
+voice and text entry.
 
-> **Voice entry.** The product's voice experience lives primarily in this chat
-> view: the intent is for the input bar to capture speech via the browser's
-> Web Speech API (`SpeechRecognition`) and send the transcript as the user
-> message. The current `ChatInput` is text; voice mic wiring is the in-progress
-> piece that completes the "just speak" flow described in the README. The
-> backend is already agnostic to how the text arrives — it just receives
-> `message`.
+> **Voice entry.** The product's voice experience lives in this chat view and in
+> the dashboard Knowledge tab: the mic captures speech via the browser's Web
+> Speech API (`SpeechRecognition`) and produces text the user can edit before it
+> is sent. The backend is agnostic to how the text arrives — it just receives the
+> transcribed message text.
 
 ## 4. The API Client — `src/lib/api.ts`
 

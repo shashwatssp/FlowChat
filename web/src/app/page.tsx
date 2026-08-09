@@ -21,7 +21,7 @@ export default function Home() {
 
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-20 text-center">
-        <h1 className="text-5xl font-bold text-gray-900 mb-6">
+<h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
           Create Your Own AI Chatbot
         </h1>
         <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
@@ -39,7 +39,7 @@ export default function Home() {
 
       {/* Features */}
       <section className="container mx-auto px-4 py-20">
-        <h2 className="text-3xl font-bold text-center mb-12">How It Works</h2>
+<h2 className="text-2xl sm:text-3xl font-bold text-center mb-12">How It Works</h2>
         <div className="grid md:grid-cols-3 gap-8">
           <div className="text-center p-6">
             <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -74,7 +74,7 @@ export default function Home() {
       {/* Use Cases */}
       <section className="bg-gray-50 py-20">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">Perfect For</h2>
+<h2 className="text-2xl sm:text-3xl font-bold text-center mb-12">Perfect For</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               'Customer Support',
@@ -96,7 +96,7 @@ export default function Home() {
 
       {/* CTA */}
       <section className="container mx-auto px-4 py-20 text-center">
-        <h2 className="text-3xl font-bold mb-4">Ready to Build Your Chatbot?</h2>
+<h2 className="text-2xl sm:text-3xl font-bold mb-4">Ready to Build Your Chatbot?</h2>
         <p className="text-xl text-gray-600 mb-8">
           Get started for free. No credit card required.
         </p>
@@ -108,7 +108,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-gray-400">© 2026 FlowChat. Built with ❤️ for developers.</p>
+          <p className="text-gray-400">© 2026 FlowChat. Built with ❤️ for small businesses.</p>
         </div>
       </footer>
     </main>

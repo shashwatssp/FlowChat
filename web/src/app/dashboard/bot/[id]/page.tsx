@@ -164,7 +164,7 @@ export default function BotManagementPage() {
             ))}
           </nav>
 
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {activeTab === 'settings' && (
               <BotSettings bot={bot} onBotUpdated={handleBotUpdated} />
             )}

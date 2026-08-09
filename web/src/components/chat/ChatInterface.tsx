@@ -268,7 +268,7 @@ export default function ChatInterface({ botSlug }: Props) {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+<div className="flex flex-col h-[calc(100dvh-4rem)]">
       <MessageList
         messages={messages}
         isLoading={false}

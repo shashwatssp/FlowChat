@@ -56,7 +56,7 @@ export default function ChatPage() {
               </div>
             )}
             <div>
-              <h1 className={`text-lg font-semibold ${loading ? 'text-gray-400' : 'text-gray-900'}`}>
+              <h1 className={`text-base sm:text-lg font-semibold ${loading ? 'text-gray-400' : 'text-gray-900'}`}>
                 {loading ? 'Loading...' : (bot?.name || 'FlowChat Assistant')}
               </h1>
               <p className="text-sm text-gray-500">powered by FlowChat</p>

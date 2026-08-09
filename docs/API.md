@@ -124,6 +124,7 @@ hex) and a slug (`utils.GenerateSlug` from the name).
 | POST | `/api/v1/knowledge/scrape` | Scrape a URL. Body: `{ bot_id, url, sitemap? }`. |
 | POST | `/api/v1/knowledge/suggest-questions` | Generate FAQs. Body: `{ name, description }`. Returns `{ questions: [] }`. |
 | POST | `/api/v1/knowledge/qa` | Save Q&A pairs. Body: `{ bot_id, qa_pairs:[{question,answer}] }`. |
+|| POST | `/api/v1/knowledge/save-text` | Save spoken/typed text as knowledge. Body: `{ bot_id, text }`. Chunks, embeds, and upserts into `knowledge_chunks`. |
 | GET | `/api/v1/knowledge/:botID` | List knowledge sources for a bot. |
 | DELETE | `/api/v1/knowledge/:sourceID` | Remove a source. |
 
@@ -153,7 +154,8 @@ Supabase `knowledge_sources` metadata row.
 | POST | `/api/v1/knowledge/upload` | Upload file (JWT) |
 | POST | `/api/v1/knowledge/scrape` | Scrape website (JWT) |
 | POST | `/api/v1/knowledge/suggest-questions` | Generate FAQ questions (JWT) |
-| POST | `/api/v1/knowledge/qa` | Save Q&A pairs (JWT) |
+|| POST | `/api/v1/knowledge/save-text` | Save spoken/typed text as knowledge (JWT) |
+|| POST | `/api/v1/knowledge/qa` | Save Q&A pairs (JWT) |
 | GET | `/api/v1/knowledge/:botID` | List sources (JWT) |
 | DELETE | `/api/v1/knowledge/:sourceID` | Delete source (JWT) |
 
