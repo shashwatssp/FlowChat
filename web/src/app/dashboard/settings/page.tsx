@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Save, BarChart3 } from 'lucide-react';
+import VoiceInput from '@/components/ui/VoiceInput';
 
 interface UserSettings {
   email: string;
@@ -76,17 +77,13 @@ export default function SettingsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  value={settings.full_name || ''}
-                  onChange={(e) => setSettings({ ...settings, full_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
+              <VoiceInput
+                label="Full Name"
+                value={settings.full_name || ''}
+                onChange={(val) => setSettings({ ...settings, full_name: val })}
+                placeholder="Your full name"
+                field="full_name"
+              />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Current Plan
