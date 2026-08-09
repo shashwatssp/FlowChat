@@ -15,7 +15,10 @@ import {
 interface Conversation {
   id: string;
   bot_id: string;
-  created_at: string;
+  started_at?: string;
+  last_message_at?: string;
+  // Handle both field names for backward compatibility
+  created_at?: string;
 }
 
 interface Message {
@@ -136,7 +139,7 @@ export default function ConversationHistory({ botID }: ConversationHistoryProps)
                       <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                         <Calendar size={12} />
                         <span>
-                          {new Date(conv.created_at).toLocaleString()}
+{new Date(conv.started_at || conv.created_at || '').toLocaleString()}
                         </span>
                       </div>
                     </div>

@@ -13,12 +13,15 @@ import {
   BarChart3,
   ExternalLink,
   ArrowLeft,
+  Code,
 } from 'lucide-react';
 import BotSettings from './components/BotSettings';
 import KnowledgeManager from './components/KnowledgeManager';
 import ConversationHistory from './components/ConversationHistory';
+import EmbedWidget from './components/EmbedWidget';
+import AnalyticsCharts from '@/components/dashboard/AnalyticsCharts';
 
-type Tab = 'settings' | 'knowledge' | 'conversations';
+type Tab = 'settings' | 'knowledge' | 'conversations' | 'embed' | 'analytics';
 
 interface Bot {
   id: string;
@@ -82,6 +85,8 @@ export default function BotManagementPage() {
     { id: 'settings', label: 'Settings', icon: <Settings size={16} /> },
     { id: 'knowledge', label: 'Knowledge Base', icon: <Upload size={16} /> },
     { id: 'conversations', label: 'Conversations', icon: <MessageSquare size={16} /> },
+    { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={16} /> },
+    { id: 'embed', label: 'Embed', icon: <Code size={16} /> },
   ];
 
   return (
@@ -168,6 +173,12 @@ export default function BotManagementPage() {
             )}
             {activeTab === 'conversations' && (
               <ConversationHistory botID={bot.id} />
+            )}
+            {activeTab === 'embed' && (
+              <EmbedWidget botID={bot.id} botName={bot.name} botSlug={bot.slug} />
+            )}
+            {activeTab === 'analytics' && (
+              <AnalyticsCharts botID={bot.id} botName={bot.name} />
             )}
           </div>
         </div>
