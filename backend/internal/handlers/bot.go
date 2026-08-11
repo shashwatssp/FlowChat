@@ -24,23 +24,27 @@ func NewBotHandler(client *supabase.Client, qdrant *qdrant.Client) *BotHandler {
 }
 
 type CreateBotRequest struct {
-	Name         string `json:"name" binding:"required"`
-	Description  string `json:"description"`
-	AvatarURL    string `json:"avatar_url"`
-	SystemPrompt string `json:"system_prompt"`
+	Name            string `json:"name" binding:"required"`
+	Description     string `json:"description"`
+	AvatarURL       string `json:"avatar_url"`
+	SystemPrompt    string `json:"system_prompt"`
+	CalendarEnabled bool   `json:"calendar_enabled"`
+	Timezone        string `json:"timezone"`
 }
 
 type BotResponse struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	Slug         string `json:"slug"`
-	AvatarURL    string `json:"avatar_url"`
-	SystemPrompt string `json:"system_prompt"`
-	APIKey       string `json:"api_key"`
-	UsageCount   int64  `json:"usage_count"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at"`
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	Slug            string `json:"slug"`
+	AvatarURL       string `json:"avatar_url"`
+	SystemPrompt    string `json:"system_prompt"`
+	CalendarEnabled bool   `json:"calendar_enabled"`
+	Timezone        string `json:"timezone"`
+	APIKey          string `json:"api_key"`
+	UsageCount      int64  `json:"usage_count"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
 }
 
 func (h *BotHandler) CreateBot(c *gin.Context) {
@@ -63,14 +67,16 @@ func (h *BotHandler) CreateBot(c *gin.Context) {
 
 	// Insert bot into Supabase
 	data := map[string]interface{}{
-		"name":          req.Name,
-		"description":   req.Description,
-		"user_id":       userID,
-		"slug":          slug,
-		"avatar_url":    req.AvatarURL,
-		"system_prompt": req.SystemPrompt,
-		"api_key":       apiKey,
-		"usage_count":   0,
+		"name":             req.Name,
+		"description":      req.Description,
+		"user_id":          userID,
+		"slug":             slug,
+		"avatar_url":       req.AvatarURL,
+		"system_prompt":    req.SystemPrompt,
+		"api_key":          apiKey,
+		"usage_count":      0,
+		"calendar_enabled": req.CalendarEnabled,
+		"timezone":         req.Timezone,
 	}
 
 	inserted, err := h.supabaseClient.From("bots").InsertReturning(data)
@@ -97,16 +103,18 @@ func (h *BotHandler) CreateBot(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, BotResponse{
-		ID:           botID,
-		Name:         req.Name,
-		Description:  req.Description,
-		Slug:         slug,
-		AvatarURL:    req.AvatarURL,
-		SystemPrompt: req.SystemPrompt,
-		APIKey:       apiKey,
-		UsageCount:   0,
-		CreatedAt:    createdAt,
-		UpdatedAt:    updatedAt,
+		ID:              botID,
+		Name:            req.Name,
+		Description:     req.Description,
+		Slug:            slug,
+		AvatarURL:       req.AvatarURL,
+		SystemPrompt:    req.SystemPrompt,
+		CalendarEnabled: req.CalendarEnabled,
+		Timezone:        req.Timezone,
+		APIKey:          apiKey,
+		UsageCount:      0,
+		CreatedAt:       createdAt,
+		UpdatedAt:       updatedAt,
 	})
 }
 
@@ -131,15 +139,17 @@ func (h *BotHandler) ListBots(c *gin.Context) {
 	bots := []BotResponse{}
 	for _, row := range results {
 		bots = append(bots, BotResponse{
-			ID:           getString(row, "id"),
-			Name:         getString(row, "name"),
-			Description:  getString(row, "description"),
-			Slug:         getString(row, "slug"),
-			AvatarURL:    getString(row, "avatar_url"),
-			SystemPrompt: getString(row, "system_prompt"),
-			UsageCount:   getInt64(row, "usage_count"),
-			CreatedAt:    getString(row, "created_at"),
-			UpdatedAt:    getString(row, "updated_at"),
+			ID:              getString(row, "id"),
+			Name:            getString(row, "name"),
+			Description:     getString(row, "description"),
+			Slug:            getString(row, "slug"),
+			AvatarURL:       getString(row, "avatar_url"),
+			SystemPrompt:    getString(row, "system_prompt"),
+			CalendarEnabled: getString(row, "calendar_enabled") == "true",
+			Timezone:        getString(row, "timezone"),
+			UsageCount:      getInt64(row, "usage_count"),
+			CreatedAt:       getString(row, "created_at"),
+			UpdatedAt:       getString(row, "updated_at"),
 		})
 	}
 
@@ -161,15 +171,17 @@ func (h *BotHandler) GetBot(c *gin.Context) {
 
 	bot := results[0]
 	c.JSON(http.StatusOK, BotResponse{
-		ID:           getString(bot, "id"),
-		Name:         getString(bot, "name"),
-		Description:  getString(bot, "description"),
-		Slug:         getString(bot, "slug"),
-		AvatarURL:    getString(bot, "avatar_url"),
-		SystemPrompt: getString(bot, "system_prompt"),
-		UsageCount:   getInt64(bot, "usage_count"),
-		CreatedAt:    getString(bot, "created_at"),
-		UpdatedAt:    getString(bot, "updated_at"),
+		ID:              getString(bot, "id"),
+		Name:            getString(bot, "name"),
+		Description:     getString(bot, "description"),
+		Slug:            getString(bot, "slug"),
+		AvatarURL:       getString(bot, "avatar_url"),
+		SystemPrompt:    getString(bot, "system_prompt"),
+		CalendarEnabled: getString(bot, "calendar_enabled") == "true",
+		Timezone:        getString(bot, "timezone"),
+		UsageCount:      getInt64(bot, "usage_count"),
+		CreatedAt:       getString(bot, "created_at"),
+		UpdatedAt:       getString(bot, "updated_at"),
 	})
 }
 
@@ -267,13 +279,15 @@ func (h *BotHandler) GetPublicBot(c *gin.Context) {
 
 	bot := results[0]
 	c.JSON(http.StatusOK, gin.H{
-		"id":          getString(bot, "id"),
-		"name":        getString(bot, "name"),
-		"description": getString(bot, "description"),
-		"slug":        getString(bot, "slug"),
-		"avatar_url":  getString(bot, "avatar_url"),
-		"usage_count": getInt64(bot, "usage_count"),
-		"created_at":  getString(bot, "created_at"),
+		"id":               getString(bot, "id"),
+		"name":             getString(bot, "name"),
+		"description":      getString(bot, "description"),
+		"slug":             getString(bot, "slug"),
+		"avatar_url":       getString(bot, "avatar_url"),
+		"calendar_enabled": getString(bot, "calendar_enabled") == "true",
+		"timezone":         getString(bot, "timezone"),
+		"usage_count":      getInt64(bot, "usage_count"),
+		"created_at":       getString(bot, "created_at"),
 	})
 }
 
@@ -304,6 +318,14 @@ func getString(m map[string]interface{}, key string) string {
 	if val, ok := m[key]; ok {
 		if s, ok := val.(string); ok {
 			return s
+		}
+		// PostgREST returns boolean columns as JSON booleans (Go bool);
+		// surface them as "true"/"false" so existing == "true" checks work.
+		if b, ok := val.(bool); ok {
+			if b {
+				return "true"
+			}
+			return "false"
 		}
 	}
 	return ""

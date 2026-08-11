@@ -225,21 +225,21 @@ func (h *KnowledgeHandler) RefineVoice(c *gin.Context) {
 	// in the right shape (plain text, structured, trimmed, etc.).
 	var systemPrompt string
 	switch strings.ToLower(strings.TrimSpace(req.Field)) {
-case "bot_name":
+	case "bot_name":
 		systemPrompt = "You turn rambling speech into a clean, short business name (2-4 words). Return ONLY the name, no quotes, no extra text."
-case "description":
+	case "description":
 		systemPrompt = "You convert spoken words into a clear, concise 1-3 sentence description of a business for a chatbot profile. Fix grammar, remove filler, keep it professional and friendly. Return only the description text, no labels."
-case "system_prompt", "bot_instructions":
+	case "system_prompt", "bot_instructions":
 		systemPrompt = "You convert spoken words into a clean system prompt for an AI chatbot. The system prompt defines how the bot behaves, its tone, and what it should know. Return only the prompt text, no labels or wrapping. Keep it concise but complete."
-case "avatar_url", "website_url":
+	case "avatar_url", "website_url":
 		systemPrompt = "Extract only the URL from the spoken text. Return just the URL string, nothing else."
-case "faq":
+	case "faq":
 		systemPrompt = "Convert spoken Q&A pairs into a clean structured format. List each question and answer on its own line as 'Q: ...\\nA: ...'. Return only the Q&A text, no extra explanation."
-case "message":
+	case "message":
 		systemPrompt = "Refine the spoken text into a clean, natural chat message. Fix grammar and remove filler words like um, uh, like. Keep the original meaning. Return only the message text."
-case "full_name":
+	case "full_name":
 		systemPrompt = "Convert the spoken text into a clean full name (first and last). Return only the name, nothing else."
-default:
+	default:
 		systemPrompt = "Refine the spoken text into clean, well-written text. Fix grammar, remove filler words (um, uh, like, you know), and make it natural and professional. Return only the refined text."
 	}
 
@@ -259,7 +259,7 @@ default:
 		log.Printf("[voice] refine failed (field=%s): %v", req.Field, err)
 		// Fall back to returning the original text so the user is never blocked.
 		c.JSON(http.StatusOK, gin.H{
-			"text": strings.TrimSpace(req.Text),
+			"text":    strings.TrimSpace(req.Text),
 			"refined": false,
 		})
 		return
@@ -483,25 +483,25 @@ func (h *KnowledgeHandler) ReindexSource(c *gin.Context) {
 
 	case "file_upload":
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Re-indexing file uploads requires re-uploading the original file. Please upload the file again using the upload endpoint.",
+			"error":       "Re-indexing file uploads requires re-uploading the original file. Please upload the file again using the upload endpoint.",
 			"source_type": sourceType,
 		})
 
 	case "image":
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Re-indexing images requires re-uploading the original image. Please upload the file again using the upload endpoint.",
+			"error":       "Re-indexing images requires re-uploading the original image. Please upload the file again using the upload endpoint.",
 			"source_type": sourceType,
 		})
 
 	case "qa_pairs":
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Re-indexing Q&A pairs requires re-saving the Q&A data. Please re-submit the question/answer pairs using the QA endpoint.",
+			"error":       "Re-indexing Q&A pairs requires re-saving the Q&A data. Please re-submit the question/answer pairs using the QA endpoint.",
 			"source_type": sourceType,
 		})
 
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("Re-indexing is not supported for source type '%s'", sourceType),
+			"error":       fmt.Sprintf("Re-indexing is not supported for source type '%s'", sourceType),
 			"source_type": sourceType,
 		})
 	}
