@@ -1,16 +1,16 @@
 package handlers
 
 import (
-"bufio"
-"context"
-"encoding/json"
-"fmt"
-"io"
-"log"
-"net/http"
-"regexp"
-"strings"
-"time"
+	"bufio"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
 
 	"flowchat/backend/internal/qdrant"
 	"flowchat/backend/internal/supabase"
@@ -19,27 +19,33 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// bookingIntentRegex matches messages expressing an intent to schedule or book
+// an appointment/meeting (e.g. "I want to book an appointment", "Can I schedule a meeting?").
+var bookingIntentRegex = regexp.MustCompile(`(?i)\b(appointment|meeting|reservation|schedule|booking)\b|\bbook\s+(?:an?\s+)?(?:appointment|meeting|slot|time|visit|date)\b`)
+
 type ChatHandler struct {
-	supabaseClient        *supabase.Client
-	qdrantClient          *qdrant.Client
-	openrouterKey         string
-	baseURL               string
-	chatModel             string
-	embeddingModel        string
-	cohereClient          utils.Embedder
-	qdrantEmbeddingModel  string
+	supabaseClient       *supabase.Client
+	qdrantClient         *qdrant.Client
+	openrouterKey        string
+	baseURL              string
+	chatModel            string
+	embeddingModel       string
+	cohereClient         utils.Embedder
+	qdrantEmbeddingModel string
+	appointmentHandler   *AppointmentHandler
 }
 
-func NewChatHandler(client *supabase.Client, qdrant *qdrant.Client, openrouterKey, baseURL, chatModel, embeddingModel, qdrantEmbeddingModel string, cohereClient utils.Embedder) *ChatHandler {
+func NewChatHandler(client *supabase.Client, qdrant *qdrant.Client, openrouterKey, baseURL, chatModel, embeddingModel, qdrantEmbeddingModel string, cohereClient utils.Embedder, appointmentHandler *AppointmentHandler) *ChatHandler {
 	return &ChatHandler{
-		supabaseClient:        client,
-		qdrantClient:          qdrant,
-		openrouterKey:         openrouterKey,
-		baseURL:               baseURL,
-		chatModel:             chatModel,
-		embeddingModel:        embeddingModel,
-		cohereClient:          cohereClient,
-		qdrantEmbeddingModel:  qdrantEmbeddingModel,
+		supabaseClient:       client,
+		qdrantClient:         qdrant,
+		openrouterKey:        openrouterKey,
+		baseURL:              baseURL,
+		chatModel:            chatModel,
+		embeddingModel:       embeddingModel,
+		cohereClient:         cohereClient,
+		qdrantEmbeddingModel: qdrantEmbeddingModel,
+		appointmentHandler:   appointmentHandler,
 	}
 }
 
@@ -120,6 +126,61 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 		log.Printf("[chat] STEP 3: using existing conversation id=%s", conversationID)
 	}
 
+	// Appointment / booking intent detection.
+	// When the bot has calendar_enabled=true and the user's message looks like
+	// they want to schedule an appointment, short-circuit the LLM and respond
+	// with a prompt for their name and phone number.
+	calendarEnabled := getString(bot, "calendar_enabled") == "true"
+	if calendarEnabled && h.appointmentHandler != nil && bookingIntentRegex.MatchString(req.Message) {
+		log.Printf("[chat] Booking intent detected bot_id=%s", botID)
+		ready, checkErr := h.appointmentHandler.CheckBotCalendarReady(c.Request.Context(), botID)
+		if checkErr != nil {
+			log.Printf("[chat] CheckBotCalendarReady error bot_id=%s err=%v", botID, checkErr)
+		}
+		if ready {
+			bookingPrompt := "I'd be happy to help you book an appointment! " +
+				"Please provide your name and phone number, and let me know " +
+				"what date and time you'd prefer."
+
+			// Save the user message.
+			if err := h.saveMessage(c.Request.Context(), conversationID, botID, "user", req.Message); err != nil {
+				log.Printf("[chat] WARN: saveMessage (user) failed conv=%s bot_id=%s err=%v", conversationID, botID, err)
+			}
+			// Save the assistant response.
+			if err := h.saveMessage(c.Request.Context(), conversationID, botID, "assistant", bookingPrompt); err != nil {
+				log.Printf("[chat] WARN: saveMessage (assistant) failed conv=%s bot_id=%s err=%v", conversationID, botID, err)
+			}
+			// Update usage count.
+			if err := h.updateBotUsage(c.Request.Context(), botID); err != nil {
+				log.Printf("[chat] WARN: updateBotUsage failed bot_id=%s err=%v", botID, err)
+			}
+
+		// Send the booking prompt as an SSE stream. The frontend always
+		// requests stream=true (via chatApi.chatStream), so we must return
+		// SSE events — a plain JSON response cannot be parsed by parseStream.
+		c.Header("Content-Type", "text/event-stream")
+		c.Header("Cache-Control", "no-cache")
+		c.Header("Connection", "keep-alive")
+
+		// Emit the booking prompt as a content delta chunk.
+		contentJSON, jErr := json.Marshal(map[string]interface{}{
+			"choices": []map[string]interface{}{
+				{"delta": map[string]interface{}{"content": bookingPrompt}},
+			},
+		})
+		if jErr == nil {
+			fmt.Fprintf(c.Writer, "data: %s\n\n", string(contentJSON))
+			c.Writer.Flush()
+		}
+
+		// Emit conversation-id metadata (mirrors handleStreamChat).
+		metaData := fmt.Sprintf(`{"conversation_id": "%s", "sources": []}`, conversationID)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", metaData)
+		c.Writer.Flush()
+		return
+		}
+	}
+
 	// Search Qdrant for relevant knowledge using native inference text-to-vector.
 	// Qdrant generates the embedding internally — no separate embedding API call needed.
 	filter := map[string]interface{}{
@@ -174,6 +235,18 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 			"role":    "system",
 			"content": fmt.Sprintf("Use the following context to answer the user's question:\n\n%s", contextBuilder.String()),
 		})
+	}
+
+	// When the bot has a connected, configured calendar, give the LLM concise
+	// availability context (working hours + already-booked times + duration)
+	// so it can reason about open vs. taken slots and never double-book.
+	if calendarEnabled && h.appointmentHandler != nil {
+		if calCtx := h.appointmentHandler.CalendarContextForChat(c.Request.Context(), botID, 7); calCtx != "" {
+			messages = append(messages, map[string]interface{}{
+				"role":    "system",
+				"content": calCtx,
+			})
+		}
 	}
 
 	// Add conversation history
@@ -307,9 +380,9 @@ func (h *ChatHandler) handleStreamChat(c *gin.Context, messages []map[string]int
 		var evt struct {
 			Choices []struct {
 				Delta struct {
-					Content          string                     `json:"content"`
-					Reasoning        string                     `json:"reasoning"`
-					ReasoningDetails []map[string]interface{}  `json:"reasoning_details"`
+					Content          string                   `json:"content"`
+					Reasoning        string                   `json:"reasoning"`
+					ReasoningDetails []map[string]interface{} `json:"reasoning_details"`
 				} `json:"delta"`
 				FinishReason       string `json:"finish_reason"`
 				NativeFinishReason string `json:"native_finish_reason"`
@@ -465,10 +538,10 @@ func extractUserMessage(messages []map[string]interface{}) string {
 
 // cleanResponse tidies up the LLM's raw output so the end user gets a
 // well-formatted, tidy answer. It:
-//   1. Strips leading/trailing whitespace and stray control characters.
-//   2. Removes common LLM leakage prefixes such as "Assistant:" or "Bot:".
-//   3. Collapses 3+ consecutive newlines into exactly two.
-//   4. Trims trailing whitespace on every line.
+//  1. Strips leading/trailing whitespace and stray control characters.
+//  2. Removes common LLM leakage prefixes such as "Assistant:" or "Bot:".
+//  3. Collapses 3+ consecutive newlines into exactly two.
+//  4. Trims trailing whitespace on every line.
 func cleanResponse(text string) string {
 	// 1 — strip stray control characters (except tab/newline)
 	text = regexp.MustCompile(`[[:cntrl:]]`).ReplaceAllString(text, "")
