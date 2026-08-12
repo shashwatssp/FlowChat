@@ -1,0 +1,42 @@
+name: Deploy to Fly.io
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy backend to Fly.io
+    runs-on: ubuntu-latest
+    concurrency: deploy-group
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          cache: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Set Fly API token
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_APP_NAME: ${{ secrets.FLY_APP_NAME }}
+        run: |
+          mkdir -p ~/.fly
+          echo "${FLY_API_TOKEN}" > ~/.fly/token
+          echo "${FLY_APP_NAME}" > ~/.fly/app-name
+
+      - name: Deploy to Fly.io
+        uses: superfly/flyctl-actions/deploy@v1
+        with:
+          args: ["--remote-only"]
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        working-directory: ./backend
