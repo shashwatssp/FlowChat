@@ -100,7 +100,14 @@ func main() {
 	botHandler := handlers.NewBotHandler(supabaseClient, qdrantClient)
 	cohereClient := utils.NewCohereClient(cfg.CohereAPIKey, cfg.CohereBaseURL).WithModel(cfg.CohereEmbeddingModel)
 	knowledgeHandler := handlers.NewKnowledgeHandler(supabaseClient, qdrantClient, cfg.OpenRouterAPIKey, cfg.ChunkSize, cfg.ChunkOverlap, cfg.QuestionModel, cfg.VisionModel, cfg.OpenRouterBaseURL, cfg.EmbeddingModel, cfg.QdrantEmbeddingModel, cohereClient, cfg.FirecrawlAPIKey)
-	chatHandler := handlers.NewChatHandler(supabaseClient, qdrantClient, cfg.OpenRouterAPIKey, cfg.OpenRouterBaseURL, cfg.ChatModel, cfg.EmbeddingModel, cfg.QdrantEmbeddingModel, cohereClient)
+	// Google Calendar integration
+	calendarHandler := handlers.NewCalendarHandler(supabaseClient, cfg.GoogleCalendarClientID, cfg.GoogleCalendarClientSecret, cfg.GoogleCalendarRedirectURL, cfg.GoogleCalendarScopes)
+	appointmentHandler := handlers.NewAppointmentHandler(supabaseClient)
+	chatHandler := handlers.NewChatHandler(supabaseClient, qdrantClient, cfg.OpenRouterAPIKey, cfg.OpenRouterBaseURL, cfg.ChatModel, cfg.EmbeddingModel, cfg.QdrantEmbeddingModel, cohereClient, appointmentHandler)
+
+	// Google Calendar OAuth routes (public — callback URL matches .env)
+	router.GET("/auth/google/calendar/connect", calendarHandler.Connect)
+	router.GET("/auth/google/calendar/callback", calendarHandler.Callback)
 
 	// Routes
 	api := router.Group("/api/v1")
@@ -135,6 +142,18 @@ func main() {
 				bots.PUT("/:botID", botHandler.UpdateBot)
 				bots.DELETE("/:botID", botHandler.DeleteBot)
 				bots.GET("/:botID/stats", botHandler.GetBotStats)
+
+			// Calendar appointment management
+			bots.GET("/:botID/settings/calendar", appointmentHandler.GetCalendarSettings)
+			bots.PUT("/:botID/settings/calendar", appointmentHandler.UpdateCalendarSettings)
+			// Backwards-compatible alias for the bare settings path
+			bots.GET("/:botID/settings", appointmentHandler.GetCalendarSettings)
+			bots.PUT("/:botID/settings", appointmentHandler.UpdateCalendarSettings)
+			bots.GET("/:botID/appointments", appointmentHandler.ListAppointments)
+				bots.GET("/:botID/availability", appointmentHandler.GetAvailability)
+				bots.POST("/:botID/availability/check", appointmentHandler.CheckAvailability)
+				bots.POST("/:botID/appointments", appointmentHandler.BookAppointment)
+				bots.DELETE("/:botID/appointments/:appointmentID", appointmentHandler.CancelAppointment)
 			}
 
 // Knowledge management
