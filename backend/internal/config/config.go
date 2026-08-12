@@ -8,54 +8,62 @@ import (
 )
 
 type Config struct {
-	SupabaseURL          string
-	SupabaseKey          string
-	SupabaseServiceKey   string
-QdrantURL            string
-	QdrantAPIKey         string
-	QdrantEmbeddingModel string
-	OpenRouterAPIKey     string
-	OpenRouterBaseURL    string
-	ChatModel            string
-	EmbeddingModel       string
-	QuestionModel        string
-	VisionModel          string
-	CohereAPIKey         string
-	CohereBaseURL        string
-	CohereEmbeddingModel string
-	FirecrawlAPIKey      string
-	JWTSecret            string
-	AllowedOrigins       string
-	Port                 string
-	Environment          string
-	RateLimitPerMin      int
-	MaxKnowledgeSize     int
-	ChunkSize            int
-	ChunkOverlap         int
+	SupabaseURL                string
+	SupabaseKey                string
+	SupabaseServiceKey         string
+	QdrantURL                  string
+	QdrantAPIKey               string
+	QdrantEmbeddingModel       string
+	OpenRouterAPIKey           string
+	OpenRouterBaseURL          string
+	ChatModel                  string
+	EmbeddingModel             string
+	QuestionModel              string
+	VisionModel                string
+	CohereAPIKey               string
+	CohereBaseURL              string
+	CohereEmbeddingModel       string
+	FirecrawlAPIKey            string
+	JWTSecret                  string
+	GoogleCalendarClientID     string
+	GoogleCalendarClientSecret string
+	GoogleCalendarRedirectURL  string
+	GoogleCalendarScopes       string
+	AllowedOrigins             string
+	Port                       string
+	Environment                string
+	RateLimitPerMin            int
+	MaxKnowledgeSize           int
+	ChunkSize                  int
+	ChunkOverlap               int
 }
 
 func Load() (*Config, error) {
 	cfg := &Config{
-		SupabaseURL:          getEnv("SUPABASE_URL", ""),
-		SupabaseKey:          getEnv("SUPABASE_KEY", ""),
-		SupabaseServiceKey:   getEnv("SUPABASE_SERVICE_KEY", ""),
-QdrantURL:            getEnv("QDRANT_URL", "http://localhost:6333"),
-		QdrantAPIKey:         getEnv("QDRANT_API_KEY", ""),
-		QdrantEmbeddingModel: getEnv("QDRANT_EMBEDDING_MODEL", "intfloat/multilingual-e5-small"),
-		OpenRouterAPIKey:     getEnv("OPENROUTER_API_KEY", getEnv("GROQ_API_KEY", "")),
-		OpenRouterBaseURL:    getEnv("OPENROUTER_BASE_URL", getEnv("LLM_BASE_URL", "https://openrouter.ai/api/v1")),
-		ChatModel:            getEnv("LLM_CHAT_MODEL", "moonshotai/kimi-k3-free"),
-		EmbeddingModel:       getEnv("LLM_EMBEDDING_MODEL", "openai/text-embedding-3-small:free"),
-		QuestionModel:        getEnv("LLM_QUESTION_MODEL", getEnv("LLM_CHAT_MODEL", "moonshotai/kimi-k3-free")),
-		VisionModel:          getEnv("LLM_VISION_MODEL", getEnv("LLM_CHAT_MODEL", "moonshotai/kimi-k3-free")),
-		CohereAPIKey:         getEnv("COHERE_API_KEY", ""),
-		CohereBaseURL:        getEnv("COHERE_BASE_URL", "https://api.cohere.com/v2"),
-		CohereEmbeddingModel: getEnv("COHERE_EMBEDDING_MODEL", "embed-v4.0"),
-		FirecrawlAPIKey:      getEnv("FIRECRAWL_API_KEY", ""),
-		JWTSecret:            getEnv("JWT_SECRET", "change-me-in-production"),
-		AllowedOrigins:       getEnv("ALLOWED_ORIGINS", "http://localhost:3000,https://chat.flowchat.app"),
-		Port:                 getEnv("PORT", "8080"),
-		Environment:          getEnv("ENV", "development"),
+		SupabaseURL:                getEnv("SUPABASE_URL", ""),
+		SupabaseKey:                getEnv("SUPABASE_KEY", ""),
+		SupabaseServiceKey:         getEnv("SUPABASE_SERVICE_KEY", ""),
+		QdrantURL:                  getEnv("QDRANT_URL", "http://localhost:6333"),
+		QdrantAPIKey:               getEnv("QDRANT_API_KEY", ""),
+		QdrantEmbeddingModel:       getEnv("QDRANT_EMBEDDING_MODEL", "intfloat/multilingual-e5-small"),
+		OpenRouterAPIKey:           getEnv("OPENROUTER_API_KEY", getEnv("GROQ_API_KEY", "")),
+		OpenRouterBaseURL:          getEnv("OPENROUTER_BASE_URL", getEnv("LLM_BASE_URL", "https://openrouter.ai/api/v1")),
+		ChatModel:                  getEnv("LLM_CHAT_MODEL", "moonshotai/kimi-k3-free"),
+		EmbeddingModel:             getEnv("LLM_EMBEDDING_MODEL", "openai/text-embedding-3-small:free"),
+		QuestionModel:              getEnv("LLM_QUESTION_MODEL", getEnv("LLM_CHAT_MODEL", "moonshotai/kimi-k3-free")),
+		VisionModel:                getEnv("LLM_VISION_MODEL", getEnv("LLM_CHAT_MODEL", "moonshotai/kimi-k3-free")),
+		CohereAPIKey:               getEnv("COHERE_API_KEY", ""),
+		CohereBaseURL:              getEnv("COHERE_BASE_URL", "https://api.cohere.com/v2"),
+		CohereEmbeddingModel:       getEnv("COHERE_EMBEDDING_MODEL", "embed-v4.0"),
+		FirecrawlAPIKey:            getEnv("FIRECRAWL_API_KEY", ""),
+		JWTSecret:                  getEnv("JWT_SECRET", "change-me-in-production"),
+		GoogleCalendarClientID:     getEnv("GOOGLE_CALENDAR_CLIENT_ID", ""),
+		GoogleCalendarClientSecret: getEnv("GOOGLE_CALENDAR_CLIENT_SECRET", ""),
+		GoogleCalendarRedirectURL:  getEnv("GOOGLE_CALENDAR_REDIRECT_URL", ""),
+		GoogleCalendarScopes:       getEnv("GOOGLE_CALENDAR_SCOPES", "https://www.googleapis.com/auth/calendar.events"),
+		AllowedOrigins:             getEnv("ALLOWED_ORIGINS", "http://localhost:3000,https://chat.flowchat.app"),
+		Port:                       getEnv("PORT", "8080"),
+		Environment:                getEnv("ENV", "development"),
 	}
 
 	// Parse numeric configs
