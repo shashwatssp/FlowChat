@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { botApi } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { Save, BarChart3, RefreshCw } from 'lucide-react';
@@ -17,6 +17,8 @@ interface Bot {
   usage_count: number;
   created_at: string;
   updated_at: string;
+  calendar_enabled?: boolean;
+  timezone?: string;
 }
 
 interface BotStats {
@@ -50,6 +52,11 @@ export default function BotSettings({ bot, onBotUpdated }: BotSettingsProps) {
       setLoading(false);
     }
   };
+
+  // Load stats on mount so they show without clicking "Refresh Stats".
+  useEffect(() => {
+    void fetchStats();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

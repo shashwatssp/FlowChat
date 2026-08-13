@@ -88,8 +88,13 @@ export default function KnowledgeManager({ botID }: KnowledgeManagerProps) {
     }
     setSavingVoice(true);
     try {
-      await knowledgeApi.saveText(botID, voiceText.trim());
-      toast.success('Voice transcript saved to knowledge base!');
+      const resp = await knowledgeApi.saveText(botID, voiceText.trim());
+      const chunks = (resp.data as any)?.chunks;
+      toast.success(
+        chunks && chunks > 1
+          ? `Voice transcript saved — ${chunks} chunks indexed!`
+          : 'Voice transcript saved to knowledge base!',
+      );
       setVoiceText('');
       setShowVoiceKnowledge(false);
       setRefreshKey((k) => k + 1);
