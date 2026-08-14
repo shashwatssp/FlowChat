@@ -57,7 +57,9 @@ export default function ChatInput({
     if (ta) {
       ta.style.height = 'auto';
       const scrollHeight = ta.scrollHeight;
-      ta.style.height = Math.min(scrollHeight, 120) + 'px';
+      // Flush with the send / voice buttons (h-12 = 48px) so the input box
+      // never sits higher than them.
+      ta.style.height = Math.min(Math.max(scrollHeight, 48), 120) + 'px';
     }
   }, [value]);
 
@@ -108,14 +110,14 @@ export default function ChatInput({
       <div className="container mx-auto">
         <div className="flex gap-3 items-end">
 
-          <div className="flex-1 relative">
+          <div className="flex-1 min-w-0 relative">
             <textarea
               ref={textareaRef}
               value={value}
               onChange={(e) => onChange(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder={isRecording ? 'Listening...' : placeholder}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none transition-all"
+              className="w-full px-4 py-2.5 min-h-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none transition-all"
               rows={1}
               maxLength={2000}
               disabled={isDisabled}
@@ -174,7 +176,7 @@ export default function ChatInput({
                   {onVoiceModeToggle && (
                     <button
                       onClick={onVoiceModeToggle}
-                      className={`flex items-center justify-center w-12 h-12 rounded-lg transition-colors flex-shrink-0 ${voiceMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'text-gray-500 border border-gray-300 hover:bg-gray-50'}`}
+                      className={`hidden sm:flex items-center justify-center w-12 h-12 rounded-lg transition-colors flex-shrink-0 ${voiceMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'text-gray-500 border border-gray-300 hover:bg-gray-50'}`}
                       title={voiceMode ? 'Disable voice mode' : 'Enable voice mode (auto-TTS)'}
                     >
                       <Volume2 size={20} />

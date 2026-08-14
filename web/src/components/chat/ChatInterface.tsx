@@ -1,8 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { chatApi, parseStream, type Source } from '@/lib/api';
+import {
+  chatApi,
+  parseStream,
+  type Source,
+  calendarApi,
+  type BookAppointmentPayload,
+} from '@/lib/api';
 import type { ChatMessage } from '@/types/chat';
+import { Calendar, Clock, X } from 'lucide-react';
 import ChatInput from './ChatInput';
 import MessageList from './MessageList';
 import { useVoiceState } from '@/hooks/useVoiceState';
@@ -10,11 +17,38 @@ import toast from 'react-hot-toast';
 
 interface Props {
   botSlug: string;
+  botID: string;
 }
 
 const STORAGE_KEY_PREFIX = 'flowchat_chat_';
 
-export default function ChatInterface({ botSlug }: Props) {
+// Mirrors the backend's bookingIntentRegex (handlers/chat.go). The booking form
+// is shown ONLY when the *user* is asking to schedule an appointment — never
+// when the assistant merely mentions words like "slot"/"available" in an
+// ordinary reply (which previously made the form pop up for every question).
+const bookingIntentRegex =
+  /\b(appointment|meeting|reservation|schedule|booking)\b|\bbook\s+(?:an?)\s+(?:appointment|meeting|slot|time|visit|date)\b/i;
+
+const isBookingIntent = (text: string): boolean => bookingIntentRegex.test(text);
+
+// Maps the conflicts array returned by POST /appointments (HTTP 409) to a
+// coarse reason so the UI can surface a precise message to the user.
+function getBookingConflictReason(conflicts: unknown): 'rule' | 'taken' | null {
+  if (!Array.isArray(conflicts)) return null;
+  for (const c of conflicts) {
+    if (typeof c === 'string') {
+      if (c.startsWith('rule')) return 'rule';
+      if (c.startsWith('appointment') || c.startsWith('hold')) return 'taken';
+    } else if (c && typeof c === 'object') {
+      const t = (c as { type?: string }).type;
+      if (t === 'rule') return 'rule';
+      if (t === 'appointment' || t === 'hold') return 'taken';
+    }
+  }
+  return null;
+}
+
+export default function ChatInterface({ botSlug, botID }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -22,6 +56,15 @@ export default function ChatInterface({ botSlug }: Props) {
   const [conversationId, setConversationId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [voiceMode, setVoiceMode] = useState(false);
+
+  const [showBookingForm, setShowBookingForm] = useState(false);
+  const [bookingName, setBookingName] = useState('');
+  const [bookingPhone, setBookingPhone] = useState('');
+  const [availableSlots, setAvailableSlots] = useState<Array<{ start_time: string; end_time: string }>>([]);  
+  const [selectedSlot, setSelectedSlot] = useState<{ start_time: string; end_time: string } | null>(null);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
+  const [bookingLoading, setBookingLoading] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -77,6 +120,15 @@ export default function ChatInterface({ botSlug }: Props) {
 
       setMessages((prev) => [...prev, userMessage]);
       setInput('');
+      // Show the booking form only when the user is genuinely requesting to
+      // schedule (mirrors the backend booking-intent regex). A non-booking
+      // follow-up message hides the form again.
+      const isBooking = !!botID && isBookingIntent(textToSend);
+      setShowBookingForm(isBooking);
+      if (!isBooking) {
+        setAvailableSlots([]);
+        setSelectedSlot(null);
+      }
       voice.startStreaming();
       setIsTyping(true);
     setError(null);
@@ -254,14 +306,100 @@ export default function ChatInterface({ botSlug }: Props) {
     }
   }, []);
 
-  // Auto-send when voice transcript is ready (state === 'submitting')
+  // When speech recognition produces a final transcript, type it into the
+  // input field (like typed text) instead of auto-sending. The user must press
+  // send (or Enter) to submit — voice input only fills the field.
   useEffect(() => {
-    if (voice.voiceState === 'submitting' && voice.transcript) {
-      voice.startStreaming();
-      void handleSend(voice.transcript.trim());
+    if (voice.voiceState === 'submitting' && voice.transcript && !isStreaming) {
+      setInput(voice.transcript);
+      voice.cancel();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voice.voiceState, voice.transcript]);
+  }, [voice.voiceState, voice.transcript, isStreaming]);
+
+  // ─── Fetch available slots when the booking form appears ───────────────────
+  useEffect(() => {
+    if (!showBookingForm || !botID) return;
+    let cancelled = false;
+    const fetchSlots = async () => {
+      setSlotsLoading(true);
+      setSlotsError(null);
+      setSelectedSlot(null);
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const nextWeek = new Date(
+          Date.now() + 7 * 24 * 60 * 60 * 1000,
+        ).toISOString().split('T')[0];
+        const res = await calendarApi.getAvailableSlots(
+          botID, today, nextWeek,
+        );
+        if (!cancelled) {
+          setAvailableSlots(res.data.slots || []);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setSlotsError(
+            err.response?.data?.error || 'Failed to load available slots',
+          );
+          setAvailableSlots([]);
+        }
+      } finally {
+        if (!cancelled) setSlotsLoading(false);
+      }
+    };
+    fetchSlots();
+    return () => { cancelled = true; };
+  }, [showBookingForm, botID]);
+
+  const handleBookingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedSlot || !bookingName.trim() || !bookingPhone.trim() || !botID) return;
+    setBookingLoading(true);
+    try {
+      const payload: BookAppointmentPayload = {
+        customer_name: bookingName.trim(),
+        customer_phone: bookingPhone.trim(),
+        start_time: selectedSlot.start_time,
+        end_time: selectedSlot.end_time,
+      };
+      await calendarApi.bookAppointment(botID, payload);
+      const slotStart = new Date(selectedSlot!.start_time);
+      const slotEnd = new Date(selectedSlot!.end_time);
+      const timeStr = `${slotStart.toLocaleString([], { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} - ${slotEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      const successMsg = `Your appointment has been booked for ${timeStr}. Looking forward to seeing you.`;
+      toast.success(successMsg);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `booked_${Date.now()}`,
+          role: 'assistant',
+          content: successMsg,
+          status: 'sent',
+          createdAt: Date.now(),
+        },
+      ]);
+      setShowBookingForm(false);
+      setBookingName('');
+      setBookingPhone('');
+      setSelectedSlot(null);
+      setAvailableSlots([]);
+    } catch (error: any) {
+      const status = error.response?.status;
+      if (status === 409) {
+        const conflicts = error.response?.data?.conflicts;
+        const reason = getBookingConflictReason(conflicts);
+        if (reason === 'rule') {
+          toast.error('That time is outside your working hours. Please choose another available slot.');
+        } else {
+          toast.error('That time slot was just booked by someone else. Please choose another time.');
+        }
+      } else {
+        toast.error(error.response?.data?.error || 'Failed to book appointment');
+      }
+    } finally {
+      setBookingLoading(false);
+    }
+  };
 
   const handleSendClick = () => {
     void handleSend();
@@ -285,6 +423,102 @@ export default function ChatInterface({ botSlug }: Props) {
         <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 mx-4 mt-2 rounded-lg text-sm">
           <p className="font-medium">Connection error</p>
           <p>{error}</p>
+        </div>
+      )}
+
+      {showBookingForm && (
+        <div className="border-t bg-gray-50 p-4">
+          <div className="container mx-auto max-w-2xl">
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar size={16} className="text-primary-600" />
+              <h3 className="text-sm font-medium text-gray-700">Book an Appointment</h3>
+              <button
+                onClick={() => {
+                  setShowBookingForm(false);
+                  setSelectedSlot(null);
+                  setAvailableSlots([]);
+                }}
+                className="ml-auto text-xs text-gray-400 hover:text-gray-600"
+                title="Dismiss"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <form onSubmit={handleBookingSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input
+                type="text"
+                value={bookingName}
+                onChange={(e) => setBookingName(e.target.value)}
+                placeholder="Your name"
+                required
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <input
+                type="tel"
+                value={bookingPhone}
+                onChange={(e) => setBookingPhone(e.target.value)}
+                placeholder="Phone number"
+                required
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              {slotsLoading ? (
+                <div className="col-span-2 py-6 text-center text-gray-500">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mx-auto mb-2"></div>
+                  <p>Loading available slots...</p>
+                </div>
+              ) : slotsError ? (
+                <div className="col-span-2 py-4 text-center text-red-500">
+                  {slotsError}
+                </div>
+              ) : availableSlots.length === 0 ? (
+                <div className="col-span-2 py-4 text-center text-gray-500">
+                  No slots available in the next 7 days.
+                </div>
+              ) : (
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    Choose an available time slot
+                  </label>
+                  <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+                    {availableSlots.map((slot) => {
+                      const start = new Date(slot.start_time);
+                      const end = new Date(slot.end_time);
+                      const isSelected = selectedSlot?.start_time === slot.start_time;
+                      return (
+                        <button
+                          key={slot.start_time}
+                          type="button"
+                          onClick={() => setSelectedSlot(slot)}
+                          className={`w-full text-left px-3 py-2.5 rounded-lg border text-sm transition-all ${isSelected ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}
+                        >
+                          <div className="font-medium">
+                            {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {' – '}
+                            {end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          <div className="text-xs opacity-75 mt-0.5">
+                            {start.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  disabled={bookingLoading || !selectedSlot}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {bookingLoading ? 'Booking...' : !selectedSlot ? 'Select a slot' : 'Confirm Booking'}
+                </button>
+              </div>
+            </form>
+            <p className="text-xs text-gray-500 mt-2">
+              We will use your name and phone to confirm the appointment.
+            </p>
+          </div>
         </div>
       )}
 
