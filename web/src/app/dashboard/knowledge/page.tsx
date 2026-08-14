@@ -128,8 +128,55 @@ export default function KnowledgePage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full bg-white rounded-lg shadow-sm border">
+          <>
+            {/* Mobile cards */}
+            <div className="sm:hidden space-y-3">
+              {filteredSources.map((source) => (
+                <div
+                  key={source.id}
+                  className="bg-white rounded-lg shadow-sm border p-4 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText size={14} className="text-gray-400" />
+                      <span className="text-sm font-medium text-gray-900 truncate">
+                        {source.name}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleDelete(source.id)}
+                      className="text-red-500 hover:text-red-700"
+                      title="Delete source"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-gray-500">Bot:</span>{" "}
+                      <span className="text-gray-600">{source.bot_name || 'Unknown'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Type:</span>{" "}
+                      <span className="text-gray-600">{formatType(source.type)}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Chunks:</span>{" "}
+                      <span className="text-gray-600">{source.chunk_count || 0}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Created:</span>{" "}
+                      <span className="text-gray-600">
+                        {new Date(source.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full bg-white rounded-lg shadow-sm border">
               <thead>
                 <tr className="border-b bg-gray-50">
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Source</th>
@@ -175,8 +222,9 @@ export default function KnowledgePage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+          </table>
+            </div>
+          </>
         )}
       </div>
     </div>
