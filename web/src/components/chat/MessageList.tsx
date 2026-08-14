@@ -123,7 +123,7 @@ export default function MessageList({
         {scrollLock && (
           <button
             onClick={scrollToBottom}
-            className="fixed bottom-24 right-6 z-10 w-10 h-10 bg-primary-600 text-white rounded-full shadow-lg hover:bg-primary-700 transition-colors flex items-center justify-center"
+            className="fixed bottom-32 sm:bottom-24 right-4 sm:right-6 z-10 w-10 h-10 bg-primary-600 text-white rounded-full shadow-lg hover:bg-primary-700 transition-colors flex items-center justify-center"
             title="Scroll to bottom"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

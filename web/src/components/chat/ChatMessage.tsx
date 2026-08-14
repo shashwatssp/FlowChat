@@ -186,7 +186,7 @@ export default function ChatMessage({
     });
 
     return (
-      <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${
+      <div className={`flex items-center gap-1 transition-opacity opacity-70 sm:opacity-0 sm:group-hover:opacity-100 ${
         isUser ? 'opacity-100' : ''
       }`}>
         {actions.map((action) => (
@@ -211,7 +211,7 @@ export default function ChatMessage({
     >
       {!isUser && getAvatar()}
 
-      <div className="max-w-[70%] flex flex-col gap-1">
+      <div className="max-w-[85%] sm:max-w-[75%] flex flex-col gap-1">
         <div
           className={`relative px-4 py-3 rounded-lg transition-all ${getBubbleClasses()}`}
         >
@@ -221,7 +221,7 @@ export default function ChatMessage({
 
         {/* Feedback buttons for assistant messages */}
         {!isUser && !isError && message.content && !isStreamingThis && (
-          <div className="flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex gap-1 mt-1 transition-opacity opacity-70 sm:opacity-0 sm:group-hover:opacity-100">
             <button
               onClick={() => onSendFeedback(true)}
               className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
