@@ -11,6 +11,7 @@ import {
   Globe,
   MessageSquare,
   BarChart3,
+  Calendar as CalendarIcon,
   ExternalLink,
   ArrowLeft,
   Code,
@@ -20,8 +21,10 @@ import KnowledgeManager from './components/KnowledgeManager';
 import ConversationHistory from './components/ConversationHistory';
 import EmbedWidget from './components/EmbedWidget';
 import AnalyticsCharts from '@/components/dashboard/AnalyticsCharts';
+import CalendarSettings from './components/CalendarSettings';
+import AppointmentsList from './components/AppointmentsList';
 
-type Tab = 'settings' | 'knowledge' | 'conversations' | 'embed' | 'analytics';
+type Tab = 'settings' | 'knowledge' | 'conversations' | 'embed' | 'analytics' | 'calendar';
 
 interface Bot {
   id: string;
@@ -34,6 +37,8 @@ interface Bot {
   usage_count: number;
   created_at: string;
   updated_at: string;
+  calendar_enabled?: boolean;
+  timezone?: string;
 }
 
 export default function BotManagementPage() {
@@ -87,6 +92,7 @@ export default function BotManagementPage() {
     { id: 'conversations', label: 'Conversations', icon: <MessageSquare size={16} /> },
     { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={16} /> },
     { id: 'embed', label: 'Embed', icon: <Code size={16} /> },
+    { id: 'calendar', label: 'Calendar', icon: <CalendarIcon size={16} /> },
   ];
 
   return (
@@ -116,17 +122,6 @@ export default function BotManagementPage() {
                 )}
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">{bot.name}</h1>
-                  <p className="text-sm text-gray-500">
-                    <Link
-                      href={`/chat/${bot.slug}`}
-                      className="text-primary-600 hover:text-primary-700 inline-flex items-center gap-1"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink size={12} />
-                      {process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') || 'http://localhost:3000'}/chat/{bot.slug}
-                    </Link>
-                  </p>
                 </div>
               </div>
             </div>
@@ -141,6 +136,18 @@ export default function BotManagementPage() {
               Open Chat
             </Link>
           </div>
+          {/* Chat URL on its own line below so it never overlaps the Open Chat button */}
+          <p className="mt-2 text-sm text-gray-500 break-all">
+            <Link
+              href={`/chat/${bot.slug}`}
+              className="text-primary-600 hover:text-primary-700 inline-flex items-center gap-1"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLink size={12} />
+              {process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/chat/{bot.slug}
+            </Link>
+          </p>
         </div>
       </header>
 
@@ -179,6 +186,12 @@ export default function BotManagementPage() {
             )}
             {activeTab === 'analytics' && (
               <AnalyticsCharts botID={bot.id} botName={bot.name} />
+            )}
+            {activeTab === 'calendar' && (
+              <div className="space-y-8">
+                <CalendarSettings botID={bot.id} />
+                <AppointmentsList botID={bot.id} />
+              </div>
             )}
           </div>
         </div>
