@@ -117,7 +117,7 @@ export default function ChatInput({
               onChange={(e) => onChange(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder={isRecording ? 'Listening...' : placeholder}
-              className="w-full px-4 py-2.5 min-h-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none transition-all"
+              className="block w-full px-4 py-2.5 min-h-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none transition-all"
               rows={1}
               maxLength={2000}
               disabled={isDisabled}
