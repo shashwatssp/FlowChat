@@ -86,7 +86,9 @@ export function useVoiceRecognition() {
     }
 
     const recognition: SpeechRecognitionInstance = new SpeechRecognitionAPI();
-    recognition.continuous = false;
+    // continuous=true lets the user take brief pauses while speaking
+    // without the speech recognition stopping on the first silence.
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = navigator.language || 'en-US';
 

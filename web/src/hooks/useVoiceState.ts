@@ -42,21 +42,22 @@ export function useVoiceState(options?: UseVoiceStateOptions) {
   const transcript = voiceState.context.transcript ?? stt.transcript;
   const error = voiceState.context.error ?? stt.error ?? tts.error;
 
-  // ─── When STT produces a final transcript, transition to 'submitting' ──────
+  // ─── When STT finishes (recording stopped), capture what was said ───────────
+  // Fires both for the natural recognition-end and for an explicit user
+  // "done"/stop click. We combine final + interim results because some
+  // browsers don't flush interim results as 'final' on stop().
   useEffect(() => {
-    // Only act if the recognition has ended with a non-empty transcript
-    // and we're currently in the recording state
-    if (!stt.isRecording && stt.finalTranscript && state === 'recording') {
-      const finalText = stt.finalTranscript.trim();
-      if (finalText) {
-        dispatch({ type: 'TRANSCRIPT_READY', transcript: finalText });
+    if (!stt.isRecording && state === 'recording') {
+      const fullTranscript = (stt.finalTranscript + stt.interimTranscript).trim();
+      if (fullTranscript) {
+        dispatch({ type: 'TRANSCRIPT_READY', transcript: fullTranscript });
       } else {
-        // No meaningful transcript — cancel
+        // Stopped without saying anything meaningful — go back to idle.
         dispatch({ type: 'CANCEL' });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stt.isRecording, stt.finalTranscript, state]);
+  }, [stt.isRecording, stt.finalTranscript, stt.interimTranscript, state]);
 
   // ─── When TTS starts (from external trigger), transition to 'speaking' ────
   useEffect(() => {
@@ -108,12 +109,21 @@ export function useVoiceState(options?: UseVoiceStateOptions) {
   const startRecording = useCallback(() => {
     if (state !== 'idle') return;
     dispatch({ type: 'START_RECORDING' });
+    // Start every session with a clean transcript slate so speech captured in a
+    // previous turn isn't concatenated onto the current one.
+    stt.reset();
     stt.start();
   }, [state, stt]);
 
   const stopRecording = useCallback(() => {
     if (state === 'recording') {
-      dispatch({ type: 'STOP_RECORDING' });
+      // Stop the browser STT but DO NOT immediately transition to 'idle'.
+      // Doing so would clear the transcript before the final recognition
+      // results could be read, which dropped the spoken text and left the
+      // input box empty after the user clicked "done". Instead we let the
+      // transcript-effect above capture the final transcript and transition
+      // to 'submitting' (-> the input field), or cancel to 'idle' if nothing
+      // was captured.
       stt.stop();
     }
   }, [state, stt]);
