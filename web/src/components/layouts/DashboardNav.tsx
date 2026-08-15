@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Bot, MessageSquare, Database, Settings, LogOut, Menu, X } from 'lucide-react';
@@ -61,43 +61,56 @@ export default function DashboardNav() {
     </>
   );
 
+  // Close the mobile drawer with the Escape key for accessibility
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open]);
+
   return (
     <>
-      {/* Mobile: fixed top bar with brand + hamburger menu */}
-      <div className="sm:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b px-4 py-3 flex items-center justify-between">
-        <span className="text-xl font-bold text-primary-600">FlowChat</span>
+      {/* Mobile: fixed top bar — hamburger on the left, brand after it */}
+      <div className="sm:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b px-4 py-3 flex items-center justify-start gap-3">
         <button
           onClick={() => setOpen(true)}
-          className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+          className="p-3 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100 min-w-11 min-h-11 flex items-center justify-center"
           title="Menu"
+          aria-label="Open menu"
         >
           <Menu size={24} />
         </button>
+        <span className="text-xl font-bold text-primary-600">FlowChat</span>
       </div>
 
-      {/* Mobile: overlay drawer with the full nav + logout */}
-      {open && (
+      {/* Mobile: overlay + slide drawer (always mounted so it can animate) */}
+      <div
+        className={`fixed inset-0 bg-black/50 z-40 sm:hidden transition-opacity duration-250 ${open ? 'opacity-100' : 'opacity-0 invisible'}`}
+        onClick={() => setOpen(false)}
+        aria-hidden={open ? undefined : true}
+      >
         <div
-          className="fixed inset-0 bg-black/50 z-40 sm:hidden"
-          onClick={() => setOpen(false)}
+          className={`fixed top-0 left-0 h-full w-full max-w-xs bg-white shadow-lg flex flex-col p-4 overflow-y-auto transition-transform duration-250 ease-in-out ${open ? 'translate-x-0' : '-translate-x-full'}`}
+          onClick={(e) => e.stopPropagation()}
+          aria-hidden={open ? undefined : true}
         >
-          <div
-            className="fixed top-0 left-0 h-full w-64 bg-white shadow-lg flex flex-col p-4 overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <span className="text-xl font-bold text-primary-600">FlowChat</span>
-              <button
-                onClick={() => setOpen(false)}
-                className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            {renderNav()}
+          <div className="flex items-center justify-between mb-6">
+            <span className="text-xl font-bold text-primary-600">FlowChat</span>
+            <button
+              onClick={() => setOpen(false)}
+              className="p-3 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100 min-w-11 min-h-11 flex items-center justify-center"
+              title="Close menu"
+              aria-label="Close menu"
+            >
+              <X size={24} />
+            </button>
           </div>
+          {renderNav()}
         </div>
-      )}
+      </div>
 
       {/* Desktop: sticky sidebar */}
       <nav className="hidden sm:block w-64 bg-white border-r h-screen sticky top-0 overflow-y-auto">
