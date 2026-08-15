@@ -66,7 +66,7 @@ export default function ChatPage() {
       </header>
 
       {/* Chat Interface */}
-      <ChatInterface botSlug={botSlug} />
+      <ChatInterface botSlug={botSlug} botID={bot?.id || ''} />
     </div>
   );
 }

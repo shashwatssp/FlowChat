@@ -32,7 +32,14 @@ export const authApi = {
 
 // Bot APIs
 export const botApi = {
-  create: (data: { name: string; description?: string; system_prompt?: string }) =>
+  create: (data: {
+    name: string;
+    description?: string;
+    avatar_url?: string;
+    system_prompt?: string;
+    calendar_enabled?: boolean;
+    timezone?: string;
+  }) =>
     api.post('/bots', data),
   
   list: () => api.get('/bots'),
@@ -240,6 +247,63 @@ function parseSSELines(text: string): StreamEvent | null {
     return null;
   }
 }
+
+// Calendar / Appointments APIs
+
+// Google Calendar OAuth connect — redirects the browser to Google's OAuth
+// consent screen via the backend's /auth/google/calendar/connect endpoint.
+export const googleCalendarApi = {
+  connectCalendar: (botId: string) => {
+    window.location.href = `${API_URL.replace('/api/v1', '')}/auth/google/calendar/connect?bot_id=${encodeURIComponent(botId)}`;
+    return Promise.resolve();
+  },
+};
+
+export interface CalendarSettingsPayload {
+  calendar_enabled: boolean;
+  timezone: string;
+  appointment_duration_minutes?: number;
+  availability_rules?: Array<{ day_of_week: number; start_time: string; end_time: string; timezone: string }>;
+  availability_exceptions?: Array<{ exception_date: string; is_open: boolean; start_time?: string; end_time?: string; timezone?: string; note?: string }>;
+}
+
+export interface BookAppointmentPayload {
+  customer_name: string;
+  customer_email?: string;
+  customer_phone: string;
+  start_time: string;
+  end_time: string;
+  notes?: string;
+}
+
+export const calendarApi = {
+  // Get calendar settings for a bot
+  getSettings: (botId: string) => api.get(`/bots/${botId}/settings`),
+
+  // Update calendar settings (enabled, timezone, availability rules, exceptions)
+  updateSettings: (botId: string, data: CalendarSettingsPayload) =>
+    api.put(`/bots/${botId}/settings`, data),
+
+  // Check slot availability
+  checkAvailability: (botId: string, startTime: string, endTime: string) =>
+    api.post(`/bots/${botId}/availability/check`, { start_time: startTime, end_time: endTime }),
+
+  // Book an appointment
+  bookAppointment: (botId: string, data: BookAppointmentPayload) =>
+    api.post(`/bots/${botId}/appointments`, data),
+
+  // List appointments (owner)
+  listAppointments: (botId: string, params?: { date_from?: string; date_to?: string; status?: string }) =>
+    api.get(`/bots/${botId}/appointments`, { params }),
+
+  // Cancel an appointment
+  cancelAppointment: (botId: string, appointmentId: string) =>
+    api.delete(`/bots/${botId}/appointments/${appointmentId}`),
+
+  // Get available slots for a date range (start_date & end_date required, duration optional in minutes)
+  getAvailableSlots: (botId: string, startDate: string, endDate: string, duration?: number) =>
+    api.get(`/bots/${botId}/availability`, { params: { start_date: startDate, end_date: endDate, ...(duration ? { duration: String(duration) } : {}) } }),
+};
 
 // Conversation APIs
 export const conversationApi = {
