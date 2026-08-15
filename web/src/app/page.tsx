@@ -27,7 +27,7 @@ export default function Home() {
         <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
           Build custom AI assistants with your own knowledge base. Share them with a link or embed on your website.
         </p>
-        <div className="flex gap-4 justify-center">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
           <Link href="/register" className="px-8 py-3 bg-primary-600 text-white rounded-lg text-lg font-medium hover:bg-primary-700">
             Start Building Free
           </Link>
