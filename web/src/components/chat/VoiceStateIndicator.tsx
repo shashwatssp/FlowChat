@@ -9,6 +9,7 @@ interface VoiceStateIndicatorProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg';
   showTranscript?: boolean;
+  showLabel?: boolean;
 }
 
 const stateConfig: Record<VoiceState, {
@@ -96,6 +97,7 @@ export default function VoiceStateIndicator({
   className,
   size = 'md',
   showTranscript = false,
+  showLabel = true,
 }: VoiceStateIndicatorProps) {
   const cfg = stateConfig[state];
   const sz = sizeConfig[size];
@@ -151,15 +153,17 @@ export default function VoiceStateIndicator({
         </span>
       )}
 
-      <span
-        className={cn(
-          'font-medium transition-colors duration-200',
-          sz.label,
-          cfg.color,
-        )}
-      >
-        {cfg.label}
-      </span>
+      {showLabel && (
+        <span
+          className={cn(
+            'font-medium transition-colors duration-200',
+            sz.label,
+            cfg.color,
+          )}
+        >
+          {cfg.label}
+        </span>
+      )}
     </div>
   );
 }

@@ -117,25 +117,22 @@ export default function ChatInput({
               onChange={(e) => onChange(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder={isRecording ? 'Listening...' : placeholder}
-              className="block w-full px-4 py-2.5 min-h-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none transition-all"
+              className={`block w-full px-4 py-2.5 min-h-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none transition-all ${isVoiceActive ? 'pl-14' : ''}`}
               rows={1}
               maxLength={2000}
               disabled={isDisabled}
             />
-            {isRecording && (
-              <div className="absolute right-3 bottom-3">
-                <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-              </div>
-            )}
 
             {isVoiceActive && (
-              <VoiceStateIndicator
-                state={derivedVoiceState}
-                transcript={transcript}
-                showTranscript={true}
-                size="sm"
-                className="mt-2"
-              />
+              <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+                <VoiceStateIndicator
+                  state={derivedVoiceState}
+                  transcript={transcript}
+                  showTranscript={false}
+                  showLabel={false}
+                  size="sm"
+                />
+              </div>
             )}
           </div>
 
