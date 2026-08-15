@@ -68,3 +68,6 @@ Thumbs.db
 # Local agent and one-off maintenance helpers
 /AGENTS_TASKS.md
 /fix_schema.py
+
+# Local appointment notes
+Appointments.ms

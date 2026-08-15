@@ -1,8 +1,8 @@
-# FlowChat — Your Own AI Assistant, in Your Own Voice
+# FlowChat - Your Own AI Assistant, in Your Own Voice
 
-**FlowChat is the easiest way for any small business to have a private, AI-powered support chatbot of its own — no coding, no AI knowledge required.**
+**FlowChat is the easiest way for any small business to have a private, AI-powered support chatbot of its own - no coding, no AI knowledge required.**
 
-A shopkeeper, a clinic receptionist, a local bakery owner, or any small business in India (and beyond) can spin up a chatbot that knows their business, answers customer questions like a real support agent, and is shared with customers through a single link. Ownership, training, and sharing are all designed to be done in seconds — ideally by simply *speaking*.
+A shopkeeper, a clinic receptionist, a local bakery owner, or any small business in India (and beyond) can spin up a chatbot that knows their business, answers customer questions like a real support agent, and is shared with customers through a single link. Ownership, training, and sharing are all designed to be done in seconds - ideally by simply *speaking*.
 
 ---
 
@@ -19,35 +19,38 @@ FlowChat removes every barrier between a small business and its own AI assistant
 
 ## How It Works (The Owner's Journey)
 
-1. **Create.** Sign up with a phone number or Google account. Name your business — "Sharma's General Store".
+1. **Create.** Sign up with a phone number or Google account. Name your business - "Sharma's General Store".
 2. **Train it, in your own words.** Tell your chatbot about your business by:
-   - **Speaking** — describe your products, hours, prices, and policies out loud (voice mode).
-   - **Uploading** — drop a PDF of your menu, a photo of today's price board, a Word doc of your return policy, or a spreadsheet of your services.
-   - **Sharing a link** — paste your website or WhatsApp catalogue and we'll ingest it.
-   - **Answering FAQs** — we'll suggest questions your customers ask, and you fill in the answers (by voice or text).
-3. **Share the link.** You get one URL like `chat.flowchat.app/your-store`. Anyone with the link can start chatting — no login needed on their side.
+   - **Speaking** - describe your products, hours, prices, and policies out loud (voice mode).
+   - **Uploading** - drop a PDF of your menu, a photo of today's price board, a Word doc of your return policy, or a spreadsheet of your services.
+   - **Sharing a link** - paste your website or WhatsApp catalogue and we'll ingest it.
+   - **Answering FAQs** - we'll suggest questions your customers ask, and you fill in the answers (by voice or text).
+3. **Share the link.** You get one URL like `chat.flowchat.app/your-store`. Anyone with the link can start chatting - no login needed on their side.
 4. **Own it.** The brain of your assistant (your knowledge) stays yours. Customers chat, get accurate answers, and you can see exactly what they're asking.
 
 ---
 
 ## Features
 
-- 🎤 **Voice-first setup** — train your bot by simply speaking about your business. The microphone in the chat input captures your voice via the browser's Web Speech API and transcribes it locally — no audio is uploaded or stored.
-- 🔊 **Voice mode toggle** — a dedicated `Volume2` button in the chat input lets the owner enable automatic text-to-speech (TTS) for bot replies. When voice mode is on, every assistant response is spoken aloud through the browser's speech synthesis; when off, TTS is fully disabled, keeping the experience quiet by default. When voice mode is disabled, `useVoiceState({ enableTTS: false })` is passed, which causes it to cancel any TTS during loading — preventing unwanted spoken output.
-- 🎙️ **Voice-to-Knowledge** — speak your business details directly into any dashboard field. The mic converts speech to text at your cursor position, you can read and edit it, optionally refine it with AI, then save it. The saved text is chunked, embedded, and added to your bot's knowledge base instantly — so the bot answers from your latest info.
-- 🧠 **Own knowledge base** — every business gets its own isolated chatbot brain. Knowledge is stored as vectors in **Qdrant**, tagged per-bot by `bot_id`, so no data leaks between businesses. The `knowledge_chunks` collection is a 1,536-dimensional vector space (Cosine distance) — matching the output dimension of the **Cohere embed-v4.0** embedding model exactly, so no padding or dimension adjustment is needed.
-- 📄 **Multi-format training** — upload `.pdf`, `.docx`, `.md`, `.csv`, `.json`, `.txt`, and `.tex`/`.latex` files. PDFs are read with the `github.com/ledongthuc/pdf` Go library; DOCX files are unpacked from their ZIP archive and their `word/document.xml` is parsed to extract text from `<w:t>` elements; LaTeX markup (commands, environments, inline/display math) is stripped via regex to leave readable content. Images are passed through a vision model that describes products, prices, and text.
-- 🔗 **Shareable chat link** — one public URL (`chat.flowchat.app/your-store`), no customer sign-in required. The bot is resolved by its slug and RAG-searched within only that bot's knowledge.
-- 💬 **Embeddable widget** — a one-line `<script>` snippet (`GET /api/v1/widget/:botID`) bootstraps a chat window onto any website.
-- 🌍 **Built for India** — every model defaults to a free-tier option. Voice works in Hindi + English + Hinglish through the browser.
-- 📊 **Insightful dashboard** — browse conversations, read full message history, and leave feedback — all scoped to a bot.
-- 🌐 **Firecrawl-powered web scraping** — when an owner pastes a website URL, FlowChat sends it to the **Firecrawl API** (`/v1/scrape` for single pages, `/v1/crawl` for sitemaps) which returns clean markdown. If the Firecrawl API key is not set or the call fails, FlowChat automatically falls back to a basic HTTP fetch with HTML tag stripping — the bot is always trained, just with varying quality.
-
+- 🎤 **Voice-first setup** - train your bot by simply speaking about your business. The microphone in the chat input captures your voice via the browser's Web Speech API and transcribes it locally - no audio is uploaded or stored.
+- 🔊 **Voice mode toggle** - a dedicated `Volume2` button in the chat input lets the owner enable automatic text-to-speech (TTS) for bot replies. When voice mode is on, every assistant response is spoken aloud through the browser's speech synthesis; when off, TTS is fully disabled, keeping the experience quiet by default. When voice mode is disabled, `useVoiceState({ enableTTS: false })` is passed, which causes it to cancel any TTS during loading - preventing unwanted spoken output.
+- 🎙️ **Voice-to-Knowledge** - speak your business details directly into any dashboard field. The mic converts speech to text at your cursor position, you can read and edit it, optionally refine it with AI, then save it. The saved text is chunked, embedded, and added to your bot's knowledge base instantly - so the bot answers from your latest info.
+- 🧠 **Own knowledge base** - every business gets its own isolated chatbot brain. Knowledge is stored as vectors in **Qdrant** (384-dimensional, Cosine distance) using **Qdrant native inference** with the `intfloat/multilingual-e5-small` model. Vectors are generated by Qdrant itself during upsert/search - no separate embedding API call or Cohere API key needed. Every point is tagged per-bot by `bot_id`, so no data leaks between businesses.
+- 📄 **Multi-format training** - upload `.pdf`, `.docx`, `.md`, `.csv`, `.json`, `.txt`, and `.tex`/`.latex` files. PDFs are read with the `github.com/ledongthuc/pdf` Go library; DOCX files are unpacked from their ZIP archive and their `word/document.xml` is parsed to extract text from `<w:t>` elements; LaTeX markup (commands, environments, inline/display math) is stripped via regex to leave readable content. Images are passed through a vision model that describes products, prices, and text.
+- 🔗 **Shareable chat link** - one public URL (`chat.flowchat.app/your-store`), no customer sign-in required. The bot is resolved by its slug and RAG-searched within only that bot's knowledge.
+- 💬 **Embeddable widget** - a one-line `<script>` snippet (`GET /api/v1/widget/:botID`) bootstraps a chat window onto any website.
+- 🌍 **Built for India** - every model defaults to a free-tier option. Voice works in Hindi + English + Hinglish through the browser.
+- 📊 **Insightful dashboard** - browse conversations, read full message history, and leave feedback - all scoped to a bot.
+- 🌐 **Website ingestion via Firecrawl** - paste any website URL and FlowChat scrapes it for training. Uses the **Firecrawl API** (`/v1/scrape` for single pages, `/v1/crawl` for sitemaps). If the key is not set or the call fails, falls back to a basic HTTP fetch with HTML tag stripping - the bot is always trained, just with varying quality.
+|- 📑 **Multi-format document ingestion** - upload `.pdf`, `.docx`, `.md`, `.csv`, `.json`, `.txt`, `.tex`/`.latex`, and images. PDFs use `github.com/ledongthuc/pdf`, DOCX is unpacked from ZIP and parsed for `<w:t>` text, LaTeX markup is stripped via regex, and images are described by a vision model.
+|- 📅 **Appointment booking** - customers can book appointments directly through the chat. The bot detects booking intent, checks availability against the owner's working hours and timezone, and confirms slots atomically with double-booking prevention.
+|- 📆 **Google Calendar integration** - bidirectional sync with Google Calendar via OAuth 2.0. New appointments appear as calendar events; external events block corresponding time slots.
+|- 🔗 **Shareable chat link**
 ---
 
 ## A Note on Voice
 
-Voice is the primary way owners *teach* their assistant and the way customers *talk* to it. The web app uses the browser's built-in SpeechRecognition / speech-to-text so no software is installed on the owner's device. The **voice mode toggle** in the chat input additionally controls automatic text-to-speech (TTS) for bot replies — owners enable it when they want spoken responses, and leave it off otherwise for a silent chat.
+Voice is the primary way owners *teach* their assistant and the way customers *talk* to it. The web app uses the browser's built-in SpeechRecognition / speech-to-text so no software is installed on the owner's device. The **voice mode toggle** in the chat input additionally controls automatic text-to-speech (TTS) for bot replies - owners enable it when they want spoken responses, and leave it off otherwise for a silent chat.
 
 The backend is agnostic to how text arrives: whether typed, spoken (browser STT), or pasted, it only ever receives the transcribed message text. This keeps the voice layer simple on the edge while all turn-processing logic stays in Go.
 
@@ -55,16 +58,17 @@ The backend is agnostic to how text arrives: whether typed, spoken (browser STT)
 
 ## Quick Start (Setup Guide for Business Owners)
 
-FlowChat is a full-stack app: a **Go** backend (Gin), a **Next.js** frontend, **Supabase** for auth & relational data, **Qdrant** for vector search, **Cohere** for embeddings, and **OpenRouter** / **Groq** for LLM inference. **Firecrawl** powers website scraping with an HTTP fallback when no API key is set.
+FlowChat is a full-stack app: a **Go** backend (Gin), a **Next.js** frontend, **Supabase** for auth & relational data, **Qdrant** for vector search with native inference embeddings, and **OpenRouter** / **Groq** for LLM inference. **Firecrawl** powers website scraping with an HTTP fallback when no API key is set.
 
 ### Prerequisites
 
 - Go 1.24+
 - Node.js 18+
 - A Supabase project (URL + anon key + service role key)
-- A Qdrant instance (local Docker or cloud — see [Qdrant Configuration](#qdrant-configuration) below)
-- A Cohere API key (free tier available) for embeddings
-- An OpenRouter API key (free tier available) for chat/vision LLM calls
+- A Qdrant instance (local Docker or cloud - see [Qdrant Configuration](#qdrant-configuration) below)
+- An OpenRouter API key (free tier available) for chat, vision, and LLM calls
+- Qdrant with native inference (model: `intfloat/multilingual-e5-small`, 384-dim - no separate embedding API needed)
+- (Optional) A Cohere API key - the code initializes a Cohere client but does **not** currently use it for embeddings (Qdrant native inference is used instead)
 - (Optional) A Firecrawl API key for higher-quality website scraping
 - (Optional) A Groq API key as a secondary LLM provider
 
@@ -84,7 +88,7 @@ cd backend
 cp .env.example .env
 # -> fill SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY,
 #    QDRANT_URL, QDRANT_API_KEY, OPENROUTER_API_KEY,
-#    COHERE_API_KEY, FIRECRAWL_API_KEY
+#    FIRECRAWL_API_KEY
 go run cmd/server/main.go
 
 # Frontend
@@ -101,33 +105,32 @@ Open `http://localhost:3000` and `http://localhost:8080/health`.
 
 ## Tech Stack
 
-### Backend — Go
+### Backend - Go
 
-- **Go 1.24 + Gin** HTTP router — handles every turn of every conversation, one request at a time.
-- **Supabase** (PostgreSQL + GoTrue auth) — bots, conversations, messages, feedback, and user accounts. The backend talks to Supabase's PostgREST REST API and GoTrue auth endpoints directly over HTTP (no ORM). A custom `isJWT` check ensures opaque `sb_publishable_*` / `sb_secret_*` keys are sent via the `apikey` header without a Bearer prefix, while legacy JWTs are sent as `Authorization: Bearer`.
-- **Qdrant** — vector database for the knowledge base (semantic search / RAG). Two collections are initialized at startup: `knowledge_chunks` (1,536-dim, Cosine) and `feedback_vectors` (1,536-dim, Cosine). A `bot_id` payload index is created on both for fast per-bot filtering.
-- **Cohere** — embeddings provider (`embed-v4.0`, 1,536-dimensional, multilingual). The Cohere client includes retry logic (up to 5 retries with exponential backoff on 429/5xx), batches requests (max 96 per call), and a 120-second timeout. The 1,536-dim output matches the Qdrant collection dimension exactly.
-- **OpenRouter** — primary LLM provider for chat generation, question suggestions, and image vision. Supports the OpenAI-compatible API (`/chat/completions`, `/embeddings`).
-- **Groq** — secondary LLM provider. If `OPENROUTER_API_KEY` is not set, the config falls back to `GROQ_API_KEY` with `GROQ_BASE_URL=https://api.groq.com/openai/v1`.
-- **Firecrawl** — website scraping API (`/v1/scrape` for single pages, `/v1/crawl` for sitemaps using `sitemap.xml`). Falls back to basic HTTP + HTML stripping when no key is set or the API call fails.
-- **Redis** — available for future caching / background job queues (runs in Docker Compose but not yet actively used by the core flow).
+- **Go 1.24 + Gin** HTTP router - handles every turn of every conversation, one request at a time.
+- **Supabase** (PostgreSQL + GoTrue auth) - bots, conversations, messages, feedback, and user accounts. The backend talks to Supabase's PostgREST REST API and GoTrue auth endpoints directly over HTTP (no ORM). A custom `isJWT` check ensures opaque `sb_publishable_*` / `sb_secret_*` keys are sent via the `apikey` header without a Bearer prefix, while legacy JWTs are sent as `Authorization: Bearer`.
+- **Qdrant** - vector database for the knowledge base (semantic search / RAG) with **native inference**. Two collections are initialized at startup: `knowledge_chunks` (384-dim, Cosine) and `feedback_vectors` (384-dim, Cosine). A `bot_id` payload index is created on both for fast per-bot filtering. Qdrant generates embeddings internally using the `intfloat/multilingual-e5-small` model, so no separate embedding API call is needed.
+- **Cohere** - a Cohere HTTP client exists in the codebase (`utils.NewCohereClient`, with retry logic, 96-request batching, 120s timeout) but is **not currently used**. Qdrant native inference handles all embeddings, eliminating the need for a Cohere API key.
+- **OpenRouter** - primary LLM provider for chat generation, question suggestions, and image vision. Supports the OpenAI-compatible API (`/chat/completions`, `/embeddings`).
+- **Groq** - secondary LLM provider. If `OPENROUTER_API_KEY` is not set, the config falls back to `GROQ_API_KEY` with `GROQ_BASE_URL=https://api.groq.com/openai/v1`.
+- **Firecrawl** - website scraping API (`/v1/scrape` for single pages, `/v1/crawl` for sitemaps using `sitemap.xml`). Falls back to basic HTTP + HTML stripping when no key is set or the API call fails.
+- **Redis** - available for future caching / background job queues (runs in Docker Compose but not yet actively used by the core flow).
 
-### Frontend — Next.js
+### Frontend - Next.js
 
 - **Next.js 14** (App Router) + **TypeScript** + **Tailwind CSS**
-- **Zustand** — small client-side store (auth, current bot)
-- **Axios / fetch** — typed API client
-- **react-markdown** — render bot replies
-- **lucide-react** — icons (`Send`, `Mic`, `Square`, `Volume2`)
-- **react-hot-toast** — notifications
-- **Browser Web Speech API** — voice input (SpeechRecognition) and text-to-speech (speech synthesis)
+- **Zustand** - small client-side store (auth, current bot)
+- **Axios / fetch** - typed API client
+- **react-markdown** - render bot replies
+- **lucide-react** - icons (`Send`, `Mic`, `Square`, `Volume2`)
+- **react-hot-toast** - notifications
+- **Browser Web Speech API** - voice input (SpeechRecognition) and text-to-speech (speech synthesis)
 
 ### Infrastructure
 
 - **Docker Compose** for local dev (`qdrant`, `redis`, `backend`, `frontend`)
-- **Vercel** — frontend hosting
-- **Railway** — backend hosting (typical)
-- **Render** — production deployment via `render.yaml`
+- **Vercel** - frontend hosting
+- **Render** - production backend deployment via `render.yaml`
 
 ---
 
@@ -137,10 +140,10 @@ Qdrant is the vector database that powers semantic search (RAG). At backend star
 
 | Collection | Vector Size | Distance | Purpose |
 |---|---|---|---|
-| `knowledge_chunks` | 1,536 | Cosine | Stores all bot knowledge vectors (files, scraped sites, Q&A, image descriptions) |
-| `feedback_vectors` | 1,536 | Cosine | Reserved for future feedback-based vector storage |
+| `knowledge_chunks` | 384 | Cosine | Stores all bot knowledge vectors (files, scraped sites, Q&A, image descriptions) |
+| `feedback_vectors` | 384 | Cosine | Reserved for future feedback-based vector storage |
 
-**Why 1,536 dimensions?** Cohere's `embed-v4.0` model (configured via `COHERE_EMBEDDING_MODEL`) produces exactly 1,536-dimensional vectors. This matches the Qdrant collection dimension at creation time, so no padding, truncation, or collection recreation is needed when switching models — the dimensions align out of the box.
+**Why 384 dimensions?** Qdrant's native inference uses the `intfloat/multilingual-e5-small` model (configured via `QDRANT_EMBEDDING_MODEL`), which produces exactly 384-dimensional vectors. This matches the Qdrant collection dimension at creation time, so no padding, truncation, or collection recreation is needed - the dimensions align out of the box. Using Qdrant native inference also means embeddings are generated within the same request that upserts/searches vectors, eliminating a separate embedding API round-trip.
 
 **Per-bot isolation:** Every vector point upserted to `knowledge_chunks` carries a `bot_id` payload field. A `bot_id` keyword index is created on the collection so searches can efficiently filter by bot. The Qdrant `Search` method builds a `must`/`match` filter on `bot_id`, ensuring a business's knowledge is never mixed into another's.
 
@@ -156,22 +159,22 @@ Qdrant is the vector database that powers semantic search (RAG). At backend star
 
 | Provider | Purpose | Config Variables |
 |---|---|---|
-| **Cohere** | Embeddings (knowledge chunks + query vectors) | `COHERE_API_KEY`, `COHERE_BASE_URL`, `COHERE_EMBEDDING_MODEL` (default `embed-v4.0`) |
+| **Qdrant** (native inference) | Embeddings for knowledge chunks + query vectors | `QDRANT_EMBEDDING_MODEL` (default `intfloat/multilingual-e5-small`, 384-dim) |
 | **OpenRouter** | Chat generation, vision, FAQ suggestions | `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL` (default `https://openrouter.ai/api/v1`) |
 | **Groq** | Fallback LLM provider (if OpenRouter key is absent) | `GROQ_API_KEY`, `GROQ_BASE_URL` (default `https://api.groq.com/openai/v1`) |
 | **Firecrawl** | Website scraping (markdown extraction) | `FIRECRAWL_API_KEY` |
 
 ### Model Selection
 
-All model choices are configurable via environment variables — no code changes needed:
+All model choices are configurable via environment variables - no code changes needed:
 
 | Variable | Purpose | Default |
 |---|---|---|
 | `LLM_CHAT_MODEL` | Generative model for chat replies | `moonshotai/kimi-k3-free` |
+| `QDRANT_EMBEDDING_MODEL` | Embedding model (Qdrant native inference) | `intfloat/multilingual-e5-small` |
 | `LLM_EMBEDDING_MODEL` | Embedding model (OpenRouter fallback) | `openai/text-embedding-3-small:free` |
 | `LLM_QUESTION_MODEL` | Model for FAQ suggestion generation | falls back to `LLM_CHAT_MODEL` |
 | `LLM_VISION_MODEL` | Vision model for image description | falls back to `LLM_CHAT_MODEL` |
-| `COHERE_EMBEDDING_MODEL` | Embedding model (primary, Cohere) | `embed-v4.0` |
 | `GROQ_CHAT_MODEL` | Groq chat model | `groq/compound-mini` |
 | `GROQ_VISION_MODEL` | Groq vision model | `groq/compound-mini` |
 
@@ -179,14 +182,14 @@ All model choices are configurable via environment variables — no code changes
 
 Every chat turn follows this pipeline (in `handlers/chat.go`):
 
-1. **Resolve the bot** — look up by slug, fetch `system_prompt` (aka "Bot Instructions"), `id`, and `name`.
-2. **Create or reuse conversation** — generate a UUID if it's a new conversation; insert into `conversations` with `bot_id` and `user_id`.
-3. **Embed the query** — call Cohere's `GenerateEmbeddings` with `input_type="search_query"` (1,536-dim vector). If Cohere is unavailable, the bot answers from the system prompt only — no 500 error.
-4. **Search Qdrant** — `Search("knowledge_chunks", queryVector, topK=5, {bot_id})` returns the 5 most relevant knowledge chunks, scoped to this bot only.
-5. **Load history** — fetch the last 10 messages from Supabase, ordered by `created_at desc`.
-6. **Assemble prompt** — `[system: bot instructions] + [system: retrieved context] + [history] + [user message]`.
-7. **Generate** — call OpenRouter (or Groq fallback) chat completion. Supports both non-streaming (full JSON reply) and streaming (SSE, token-by-token).
-8. **Persist** — save user + assistant messages to `messages`, increment bot usage via `RPC("increment_bot_usage")`.
+1. **Resolve the bot** - look up by slug, fetch `system_prompt` (aka "Bot Instructions"), `id`, and `name`.
+2. **Create or reuse conversation** - generate a UUID if it's a new conversation; insert into `conversations` with `bot_id` and `user_id`.
+3. **Embed the query** - Qdrant native inference generates a 384-dim vector from the user's message using the `intfloat/multilingual-e5-small` model. The query is embedded inside the Qdrant search request itself - no separate embedding API call.
+4. **Search Qdrant** - `SearchDocuments("knowledge_chunks", "intfloat/multilingual-e5-small", userMessage, 5, {bot_id})` uses Qdrant native inference to embed the query text and find the 5 most similar vectors, scoped to this bot only.
+5. **Load history** - fetch the last 10 messages from Supabase, ordered by `created_at desc`.
+6. **Assemble prompt** - `[system: bot instructions] + [system: retrieved context] + [history] + [user message]`.
+7. **Generate** - call OpenRouter (or Groq fallback) chat completion. Supports both non-streaming (full JSON reply) and streaming (SSE, token-by-token).
+8. **Persist** - save user + assistant messages to `messages`, increment bot usage via `RPC("increment_bot_usage")`.
 
 ### Training Pipeline (Knowledge Ingestion)
 
@@ -195,8 +198,8 @@ All four ingestion paths (file upload, website scrape, Q&A, suggested FAQs) run 
 ```
 input (file / URL / typed)  →  extract text
                                →  chunk (utils.ChunkText, ~500 chars, 50 overlap)
-                               →  embed (Cohere embed-v4.0, 1536-dim)
-                               →  upsert into Qdrant knowledge_chunks (tagged bot_id)
+                               →  upsert to Qdrant (native inference: text + model → embedding, 384-dim)
+                               →  Qdrant stores vector + payload in knowledge_chunks (tagged bot_id)
                                →  record source in Supabase knowledge_sources
 ```
 
@@ -228,15 +231,10 @@ input (file / URL / typed)  →  extract text
   │  turn processing  │──│  (auth+REST) │  │  bots,     │
   │  RAG + LLM calls   │──│              │  │  msgs, …  │
   └──────┬───────────┘  └──────────────┘  └────────────┘
-         ▼  vector search
+         ▼  vector search + native inference
   ┌────────────┐
-  │  Qdrant    │  knowledge_chunks (1536-dim, bot_id filter)
-  │  (vectors) │
-  └────────────┘
-         ▲  embeddings + chat
-  ┌────────────┐
-  │  Cohere    │  embeddings (embed-v4.0, 1536-dim)
-  │  (embed)   │
+  │  Qdrant    │  knowledge_chunks (384-dim, bot_id filter)
+  │  (vectors)  │  native inference: intfloat/multilingual-e5-small
   └────────────┘
          ▲  chat / vision / question
   ┌────────────┐
@@ -269,19 +267,342 @@ All endpoints live under `/api/v1`. The backend listens on `:8080` by default.
 
 ### Key endpoint details
 
-- **`POST /chat/:botSlug`** — The public chat endpoint. Resolves the bot by slug (no API key required for link-based chat), runs RAG, and returns `{ response, conversation_id, sources }`. Supports `stream: true` for SSE token-by-token replies. Messages are persisted after the stream completes.
-- **`POST /knowledge/scrape`** — Body: `{ bot_id, url, sitemap? }`. Calls Firecrawl's `/v1/scrape` (or `/v1/crawl` if `sitemap=true`), parses the response (handles both single-object and array `data` formats), and falls back to HTTP + HTML stripping if the key is empty or the API fails.
-- **`POST /knowledge/upload`** — Multipart form: `bot_id` + `file`. Validates extension, extracts text (PDF/DOCX/LaTeX/image vision), chunks, embeds, and stores in Qdrant.
-- **`GET /conversations/:botID`** — Lists conversations for a bot, ordered by `started_at` descending. Uses `Select("*")` to fetch all columns and avoid 500 errors from missing fields.
-- **`GET /widget/:botID`** — Returns a JS snippet that loads the widget from CDN and initializes it.
+- **`POST /chat/:botSlug`** - The public chat endpoint. Resolves the bot by slug (no API key required for link-based chat), runs RAG, and returns `{ response, conversation_id, sources }`. Supports `stream: true` for SSE token-by-token replies. Messages are persisted after the stream completes.
+- **`POST /knowledge/scrape`** - Body: `{ bot_id, url, sitemap? }`. Calls Firecrawl's `/v1/scrape` (or `/v1/crawl` if `sitemap=true`), parses the response (handles both single-object and array `data` formats), and falls back to HTTP + HTML stripping if the key is empty or the API fails.
+- **`POST /knowledge/upload`** - Multipart form: `bot_id` + `file`. Validates extension, extracts text (PDF/DOCX/LaTeX/image vision), chunks, embeds, and stores in Qdrant.
+- **`GET /conversations/:botID`** - Lists conversations for a bot, ordered by `started_at` descending. Uses `Select("*")` to fetch all columns and avoid 500 errors from missing fields.
+- **`GET /widget/:botID`** - Returns a JS snippet that loads the widget from CDN and initializes it.
 
 Full reference in [`docs/API.md`](docs/API.md).
 
 ---
 
+## Recommended APIs from `public-apis`
+
+The [public-apis repository](https://github.com/public-apis/public-apis) is a
+community-curated directory, not a dependency or reliability guarantee. Its
+entries commonly show authentication, HTTPS, and CORS support, but each
+provider still has its own terms, quotas, retention rules, availability, and
+pricing. Review the provider's current documentation before shipping an
+integration.
+
+FlowChat should call third-party APIs from the Go backend through small,
+replaceable clients. Do not put provider keys in the Next.js bundle or call
+paid/private APIs directly from the public chat widget.
+
+### Best fits for the current product
+
+| Priority | API or provider | FlowChat use | Auth / cost note | Recommendation |
+|---|---|---|---|---|
+| P0 | [Google Calendar API](https://developers.google.com/calendar/api) | Bidirectional appointment sync, availability blocking, and event creation | OAuth 2.0; Calendar scopes and consent-screen verification apply | Continue the integration designed in [`docs/APPOINTMENTS.md`](docs/APPOINTMENTS.md) |
+| P0 | [Public Holidays](https://www.abstractapi.com/holidays-api) or [Calendarific](https://calendarific.com/) | Close appointment slots on national or regional holidays | API key; verify current free quota and country coverage | Add after the core booking engine works |
+| P0 | [Numverify](https://numverify.com/) | Validate customer phone numbers before saving an appointment | API key; validation is not SMS or voice delivery | Add when phone collection becomes part of booking |
+| P0 | [Mailboxlayer](https://mailboxlayer.com/) or [Email Validation](https://www.abstractapi.com/email-verification-validation-api) | Reject malformed or disposable-looking customer emails before reminders | API key; never treat the response as proof of identity | Add before email reminders |
+| P1 | [Open-Meteo](https://open-meteo.com/) | Weather-aware answers, outdoor appointment warnings, and reminder context | No key for typical use; follow usage limits and attribution rules | Good low-cost optional chatbot tool |
+| P1 | [Geoapify](https://www.geoapify.com/api/geocoding-api/) or [Nominatim](https://nominatim.org/release-docs/latest/api/Search/) | Convert a business address to coordinates and location context | Provider-specific limits; public Nominatim requires policy compliance | Use for business profile/location features, not every chat turn |
+| P1 | [LibreTranslate](https://libretranslate.com/) | Translate messages or knowledge for multilingual bots | Hosted instances may require an API key and impose limits | Add only after measuring demand |
+| P2 | [Weatherstack](https://weatherstack.com/) | Alternative weather provider if Open-Meteo lacks required data or SLA | API key; verify current free tier and HTTPS availability | Evaluate only when weather becomes a paid feature |
+
+### What these APIs map to in FlowChat
+
+1. **Appointments:** Keep Google Calendar as the source of external calendar
+   events. Use a holiday API only to add date-level exceptions; do not replace
+   the transactional Supabase booking check with an external API.
+2. **Customer data quality:** Validate email and phone values before storing
+   them in `appointments`. Keep original input separate from normalized values
+   when auditability matters.
+3. **Business context:** Geocode a business address once when it is saved, then
+   cache the result. Weather and directions should be explicit tools or
+   intents, not unconditional calls on every RAG request.
+4. **Multilingual support:** Translate at the edge of the chat flow only when
+   needed. Preserve the original message and avoid embedding uncontrolled
+   translations into the bot's knowledge base.
+
+### APIs that should not be added just because they are listed
+
+- **Email validation is not email delivery.** Validation services do not
+  replace a transactional email provider for confirmations and reminders.
+- **Numverify is not a phone provider.** It cannot provision a number, send an
+  OTP, or replace Exotel. Exotel remains the telephony integration.
+- **Public free APIs are not production guarantees.** Add timeouts, bounded
+  exponential backoff, circuit breaking, response caching, and graceful
+  fallback behavior for every optional provider.
+- **Avoid IP geolocation by default.** It can create privacy and accuracy
+  problems; ask the customer for location or timezone when the feature needs it.
+- **Avoid search/scraping APIs as a default RAG source.** FlowChat already has
+  Firecrawl with an HTTP fallback. Search scrapers add attribution, terms,
+  latency, and quality concerns.
+
+### Suggested implementation order
+
+1. Finish the local appointment engine and Google Calendar OAuth/sync.
+2. Add a holiday provider and persist returned dates in
+   `availability_exceptions`.
+3. Add email and phone validation at the appointment boundary.
+4. Add geocoding and weather as opt-in bot tools.
+5. Add translation only after selecting a provider with an acceptable
+   data-retention policy.
+
+For every integration, add a backend-only environment variable, a provider
+client with a timeout, structured error logging without PII or secrets, a
+mocked unit test, and a feature flag. The public-apis catalog is an idea and
+discovery source; it does not remove the need for provider accounts, keys,
+OAuth consent, billing, or production verification.
+
+---
+### APILayer dashboard: what the account can provide
+
+The [APILayer dashboard](https://app.apilayer.com/dashboard) is a marketplace
+and subscription manager. APILayer advertises 40+ APIs overall and a unified
+account/key experience, while the current suite rollout prominently includes:
+
+- **IPstack** — IP geolocation, timezone, currency, connection, and security
+  signals
+- **Positionstack** — forward/reverse address geocoding and coordinates
+- **Countrylayer** — countries, calling codes, currencies, languages, and
+  regions
+- **Numverify** — phone number validation and lookup
+- **Mailboxlayer** — email syntax, MX/SMTP, typo, disposable, and quality checks
+- **Weatherstack** — current weather and forecasts
+- **Mediastack** — news and media feeds
+- **Serpstack** — structured Google search results
+- **Scrapestack** — HTML extraction, JavaScript rendering, proxies, and
+  geolocation targeting
+- **Marketstack** — stock and market data
+- **Aviationstack** — flights, airports, routes, schedules, and status
+
+The broader APILayer catalog also exposes products such as Fixer/exchange-rate
+APIs, Currencylayer, Coinlayer, Languagelayer, Vatlayer, Userstack,
+Screenshotlayer, and PDF-related tools. Product names, subscription state,
+limits, and pricing can change, so the dashboard and each product's
+documentation are the source of truth. Adding an API to an account does not
+automatically implement it in FlowChat.
+
+The `public-apis` GitHub repository is a directory of many independent
+providers. Its entries are not automatically included in APILayer and cannot
+all be called with an APILayer key. Use the APILayer dashboard for APILayer
+products, and use each independent provider's own account and credentials for
+everything else.
+
+### Important APILayer account rules
+
+1. Subscribe to the specific API plan in the dashboard before calling it.
+2. Use the API key only from the Go backend. Never expose it through
+   `NEXT_PUBLIC_*`, browser JavaScript, widget code, Git, or README files.
+3. A single suite key can authenticate subscribed suite products, but quotas
+   and plans are still applied per product.
+4. Check the response's rate-limit headers and handle `401`, `403`, `429`, and
+   provider `5xx` responses with bounded retries and a fallback.
+5. APILayer provides Node.js SDKs for some products, including Fixer, IPstack,
+   Aviationstack, Marketstack, and Coinlayer. FlowChat's production
+   integration belongs in the Go backend, so use the provider's REST API or a
+   reviewed Go client rather than putting an SDK in the frontend.
+6. The API key previously pasted into chat is compromised. Rotate it from the
+   APILayer account/dashboard before using it in development or production, and
+   store the replacement as a backend secret such as `APILAYER_API_KEY`.
+
+### New FlowChat features enabled by APILayer
+
+| Feature | APILayer products | User-facing result | Data/storage decision |
+|---|---|---|---|
+| Location-aware bot profile | Positionstack, Countrylayer | Business address autocomplete, coordinates, timezone, calling code, and localized profile | Cache normalized location on the bot; do not geolocate every chat request |
+| Better appointment intake | Mailboxlayer, Numverify, Countrylayer | Fewer invalid email/phone values and better country-code defaults | Store normalized value plus validation timestamp/provider status |
+| Appointment operations | Google Calendar plus Public Holidays/Calendarific | Holiday-aware availability and bidirectional calendar sync | Keep Supabase as booking authority; store provider event IDs and exceptions |
+| Weather-aware appointments | Weatherstack or Open-Meteo | Outdoor-service warnings and weather-aware reminders | Cache short-lived forecasts; never block booking solely on a forecast |
+| News-enabled business bots | Mediastack | “What is happening in our industry?” or curated news answers | Fetch on demand, summarize through the LLM, and cite source/time |
+| Website/knowledge ingestion | Scrapestack or existing Firecrawl | Better extraction from JavaScript-heavy sites | Prefer existing Firecrawl; use one provider fallback, not both on every request |
+| Search and competitor insights | Serpstack | Owner-only keyword, competitor, and FAQ research | Keep out of customer chat by default; review search-provider terms |
+| Travel/service bots | Aviationstack | Flight status, airport, and route answers | Add only for travel-focused bots; cache status briefly |
+| Currency-aware answers | Fixer, Currencylayer, or exchangerate APIs | Localized prices and currency conversion | Store source currency and quote timestamp; never use stale rates for settlement |
+| Document utilities | PDF-related APILayer tools | Convert or generate documents for owners | Keep generated files private and enforce file-size/content limits |
+
+### Recommended APILayer rollout
+
+**Phase A — highest-value, lowest-risk**
+
+- `Mailboxlayer` and `Numverify` at appointment/contact boundaries
+- `Positionstack` when a bot owner saves or edits a business address
+- `Countrylayer` for country/calling-code/timezone metadata
+
+**Phase B — calendar and customer experience**
+
+- Holiday data merged into `availability_exceptions`
+- Weather lookup as an opt-in tool
+- Google Calendar remains the OAuth-based calendar integration; APILayer does
+  not replace it
+
+**Phase C — specialized bot capabilities**
+
+- `Mediastack` for news bots
+- `Aviationstack` for travel bots
+- `Fixer`/currency APIs for international commerce
+- `Serpstack` or `Scrapestack` for owner-only research and ingestion
+
+Every feature should be behind a bot-level flag and should degrade to a useful
+answer when the provider is unavailable. Do not add all APIs at once: each new
+provider adds cost, quota management, privacy review, maintenance, and
+additional failure modes.
+
+---
+
+### Appointment Scheduling & Calendar Integration
+
+FlowChat now supports appointment booking directly in the chat interface and bidirectional sync with Google Calendar:
+
+- Per-turn intent detection routes appointment-related messages to a booking flow.
+- Availability checking uses per-bot working hours, timezone, and date exceptions.
+- Double-booking prevention via Postgres transaction locks and unique constraints.
+- Natural-language date parsing ("book at 4:30 on Tuesday").
+- Google Calendar sync: appointments appear as events; external events block slots.
+
+See `docs/APPOINTMENTS.md` for the full design document.
+
+### APILayer Integration Backlog
+
+Use the name **“APILayer Integration Backlog”** when referring to this plan in
+future implementation work. The screenshot supplied for the APILayer account
+shows these APIs subscribed on their **Free Plan**:
+
+| API | Current subscription | What it provides | FlowChat decision |
+|---|---|---|---|
+| **Marketstack** | Free plan | Stock quotes, market instruments, exchanges, indices, and historical market data | Do not add to the general chatbot; add later only for finance/investment bots |
+| **Scrapestack** | Free plan | HTML extraction, JavaScript rendering, proxy/location options, and scraping retries | Keep as an optional Firecrawl fallback for JavaScript-heavy pages; never scrape on every chat request |
+| **Serpstack** | Free plan | Structured Google search results, including web, news, images, videos, shopping, and localized search context | Build an owner-only research/competitor tool; do not silently turn customer questions into web searches |
+| **Mediastack** | Free plan | News headlines and media feeds with filtering by topics, sources, language, and country | Build an opt-in news tool for bots that need current industry information |
+| **Mailboxlayer** | Free plan | Email syntax, typo suggestions, MX/SMTP checks, disposable/free-provider detection, and quality signals | Highest-value immediate addition for appointment/contact validation |
+| **Aviationstack** | Free plan | Flights, airlines, airports, routes, schedules, and live status data | Add only for travel, airport, or logistics-oriented bots |
+| **Positionstack** | Free plan | Forward/reverse geocoding, coordinates, address components, timezone, and location metadata | Add when a bot owner saves a business address or needs location-aware answers |
+
+The APILayer documentation hub is
+[docs.apilayer.com/apilayer/docs](https://docs.apilayer.com/apilayer/docs/).
+Confirm each API's exact endpoint, response schema, plan quota, and acceptable
+commercial use there before implementation. A free subscription still
+requires the backend API key and is subject to rate limits.
+
+### Recommended implementation order
+
+#### Backlog item A — `mailboxlayer-contact-validation`
+
+Add a backend validation step before storing an appointment's
+`customer_email`:
+
+1. Validate syntax locally first.
+2. Call Mailboxlayer only when the value is present and local validation passes.
+3. Return a helpful correction for a typo suggestion.
+4. Store validation status, provider timestamp, and normalized email—not the
+   provider API response wholesale.
+5. Treat the result as a quality signal, not proof that the customer owns the
+   mailbox.
+
+This should be implemented before email reminders. It should not block all
+bookings when Mailboxlayer is unavailable.
+
+#### Backlog item B — `positionstack-business-location`
+
+Add an optional location section to bot settings:
+
+1. Owner enters a business address.
+2. Backend calls Positionstack forward geocoding once on save.
+3. Owner confirms the suggested address/coordinates.
+4. Store normalized address, latitude, longitude, timezone, and provider
+   metadata on the bot.
+5. Reuse cached coordinates for directions, weather, or local search.
+
+Do not infer a customer's location from their IP without consent. Do not call
+Positionstack for every chat turn.
+
+#### Backlog item C — `scrapestack-firecrawl-fallback`
+
+FlowChat already uses Firecrawl and has an HTTP fallback. Scrapestack should
+be a feature-flagged fallback only:
+
+1. Try Firecrawl first.
+2. If the page requires JavaScript and Firecrawl fails, optionally try
+   Scrapestack.
+3. Enforce URL allowlists, response-size limits, timeouts, and content-type
+   checks.
+4. Record the source URL, retrieval time, and provider.
+5. Respect robots directives, site terms, copyright, and personal-data
+   restrictions.
+
+Do not combine both scraping providers on every request.
+
+#### Backlog item D — `serpstack-owner-research`
+
+Create an owner-dashboard action such as **Research this topic**:
+
+- Search current results for a topic, competitor, or FAQ gap.
+- Return structured results with title, URL, snippet, and retrieval time.
+- Let the owner choose which sources become knowledge.
+- Store only selected, permitted content in Qdrant.
+- Show citations and clearly label search results as external information.
+
+This must remain owner-authenticated and separate from the public customer chat
+path because search results can be volatile, expensive, and subject to provider
+and search-engine terms.
+
+#### Backlog item E — `mediastack-current-news-tool`
+
+Add an opt-in tool for bots that need current news:
+
+- Query only when the user asks for recent news or the bot explicitly enables
+  news.
+- Filter by country, language, category, source, and time window.
+- Cache short-lived results.
+- Summarize through the existing LLM.
+- Include source links and publication timestamps.
+- Do not permanently ingest every headline into the bot knowledge base.
+
+#### Backlog item F — `aviationstack-travel-tool`
+
+Add a specialized travel-bot tool that can answer flight-status questions:
+
+- Require flight number, airline, airport, or route context.
+- Normalize dates and timezones.
+- Cache status briefly because flight data changes.
+- Display the provider retrieval time.
+- Return an explicit “data unavailable” response instead of inventing status.
+
+This is not useful for ordinary retail, clinic, or restaurant bots and should
+not be enabled globally.
+
+#### Backlog item G — `marketstack-finance-bot`
+
+Keep Marketstack out of the default FlowChat product. If finance bots are
+introduced later, add a separate tool for:
+
+- Instrument and exchange lookup
+- Current/end-of-day quotes
+- Historical charts
+- Market summaries
+
+Include timestamps, currency, exchange, and a non-investment-advice
+disclaimer. Do not make trading or investment recommendations from raw market
+data.
+
+### Shared implementation contract
+
+Each backlog item should add:
+
+- A Go provider client under a dedicated integration package
+- A backend-only `APILAYER_API_KEY` configuration lookup
+- A per-feature flag on the bot or account
+- Request timeout and bounded retry behavior
+- Handling for `401`, `403`, `429`, and provider `5xx` responses
+- Rate-limit logging without logging the API key or customer PII
+- Mocked unit tests and an integration test using a manually supplied secret
+- A cache policy appropriate to the data's freshness
+- A graceful fallback when the provider is unavailable
+
+The key shown in chat must not be copied into this README or any `.env` file
+committed to Git. Rotate it before implementation and provide the replacement
+to the implementing agent through the approved secret-management mechanism.
+
+---
+
 ## Database Schema
 
-The source of truth is `supabase/schema.sql`. All relational data lives in PostgreSQL (via Supabase). Vector knowledge lives separately in Qdrant — Postgres only stores per-source metadata (name, type, chunk count, status).
+The source of truth is `supabase/schema.sql`. All relational data lives in PostgreSQL (via Supabase). Vector knowledge lives separately in Qdrant - Postgres only stores per-source metadata (name, type, chunk count, status).
 
 | Table | Key Columns | Purpose |
 |---|---|---|
@@ -320,16 +641,22 @@ OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 
 # LLM model selection
 LLM_CHAT_MODEL=moonshotai/kimi-k3-free
-LLM_EMBEDDING_MODEL=openai/text-embedding-3-small:free
 LLM_QUESTION_MODEL=moonshotai/kimi-k3-free   # falls back to LLM_CHAT_MODEL
 LLM_VISION_MODEL=moonshotai/kimi-k3-free     # falls back to LLM_CHAT_MODEL
 
-# Cohere (embeddings — primary embedding provider, 1536-dim matches Qdrant)
-COHERE_API_KEY=your-cohere-api-key
-COHERE_BASE_URL=https://api.cohere.com/v2
-COHERE_EMBEDDING_MODEL=embed-v4.0
+# Qdrant native inference (embeddings are generated by Qdrant, not a separate API)
+QDRANT_EMBEDDING_MODEL=intfloat/multilingual-e5-small
 
-# Groq (fallback LLM provider — used if OPENROUTER_API_KEY is not set)
+# LLM_EMBEDDING_MODEL is a fallback - only used if OpenRouter embeddings are needed (not used in the default flow)
+LLM_EMBEDDING_MODEL=openai/text-embedding-3-small:free
+
+# Cohere (NOT currently used - Qdrant native inference handles all embeddings)
+# The Cohere client exists in code but is not called. Keep these for future use.
+# COHERE_API_KEY=your-cohere-api-key
+# COHERE_BASE_URL=https://api.cohere.com/v2
+# COHERE_EMBEDDING_MODEL=embed-v4.0
+
+# Groq (fallback LLM provider - used if OPENROUTER_API_KEY is not set)
 GROQ_API_KEY=your-groq-key
 GROQ_BASE_URL=https://api.groq.com/openai/v1
 GROQ_CHAT_MODEL=groq/compound-mini
@@ -347,8 +674,11 @@ MAX_KNOWLEDGE_SIZE_MB=10
 CHUNK_SIZE=500
 CHUNK_OVERLAP=50
 
-# Firecrawl (web scraping — optional; falls back to HTTP if absent)
+# Firecrawl (web scraping - optional; falls back to HTTP if absent)
 FIRECRAWL_API_KEY=your-firecrawl-key
+
+# APILayer (optional provider integrations; keep server-side only)
+APILAYER_API_KEY=your-rotated-apilayer-key
 ```
 
 ### Frontend (`web/.env.local`)
@@ -367,7 +697,7 @@ The chat input (`ChatInput.tsx`) includes a **voice mode toggle** (`Volume2` ico
 - After a bot response completes, if `fullContent && voiceMode && voice.isTTSSupported`, the browser's speech synthesis speaks the full reply aloud.
 - When disabled, `enableTTS: false` causes the voice hook to dispatch a `CANCEL` during loading state, preventing any TTS output.
 
-The toggle is blue when active, gray when inactive, and all chat input action buttons are consistently `w-12 h-12` for visual alignment. The attachment button (`Paperclip`) has been removed from the chat input — file uploads happen through the dashboard's Knowledge tab instead.
+The toggle is blue when active, gray when inactive, and all chat input action buttons are consistently `w-12 h-12` for visual alignment. The attachment button (`Paperclip`) has been removed from the chat input - file uploads happen through the dashboard's Knowledge tab instead.
 
 ---
 
@@ -380,7 +710,7 @@ This README covers *what* FlowChat is. The `docs/` folder explains *how* it is b
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The overall build, data flow, multi-tenancy model, and deployment topology. |
 | [`docs/BACKEND_GO.md`](docs/BACKEND_GO.md) | How Go + Gin process each chat turn, handler layers, middleware, service clients, and graceful degradation. |
 | [`docs/FRONTEND.md`](docs/FRONTEND.md) | How Next.js serves the landing page and the chat interface, voice capture, and state/API call flow. |
-| [`docs/LLM_AND_RAG.md`](docs/LLM_AND_RAG.md) | How the LLM is called (chat, embeddings, vision) and how RAG retrieves answers from your knowledge, with Cohere embeddings. |
+| [`docs/LLM_AND_RAG.md`](docs/LLM_AND_RAG.md) | How the LLM is called (chat, vision, FAQ) and how RAG retrieves answers from your knowledge, using Qdrant native inference for embeddings. |
 | [`docs/DATABASE.md`](docs/DATABASE.md) | Table schemas, relationships, RLS policies, and the Postgres vs Qdrant split. |
 | [`docs/API.md`](docs/API.md) | Full endpoint reference and how requests flow end-to-end. |
 | [`docs/USE_CASES.md`](docs/USE_CASES.md) | A feature-by-feature map of what every piece is used for. |
@@ -404,22 +734,22 @@ This README covers *what* FlowChat is. The `docs/` folder explains *how* it is b
 
 ### Render (production backend)
 
-`render.yaml` defines the backend as a Docker service on port `:10000`. Sensitive keys (`SUPABASE_*`, `QDRANT_*`, `OPENROUTER_API_KEY`, `COHERE_API_KEY`, `GROQ_API_KEY`, `FIRECRAWL_API_KEY`, `JWT_SECRET`, `ALLOWED_ORIGINS`) are set as `sync: false` environment variables in the Render dashboard — never committed to version control.
+`render.yaml` defines the backend as a Docker service on port `:10000`. Sensitive keys (`SUPABASE_*`, `QDRANT_*`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `FIRECRAWL_API_KEY`, `JWT_SECRET`, `ALLOWED_ORIGINS`) are set as `sync: false` environment variables in the Render dashboard - never committed to version control.
 
 ### Docker Compose (local)
 
-The `docker-compose.yml` runs four services. The backend uses `env_file: ./backend/.env` (auto-loading all variables including `FIRECRAWL_API_KEY`, `COHERE_API_KEY`, `GROQ_API_KEY`, etc.) and overrides `QDRANT_URL=http://qdrant:6333` to use the Docker-internal container name.
+The `docker-compose.yml` runs four services. The backend uses `env_file: ./backend/.env` (auto-loading all variables including `FIRECRAWL_API_KEY`, `GROQ_API_KEY`, etc.) and overrides `QDRANT_URL=http://qdrant:6333` to use the Docker-internal container name.
 
 ---
 
 ## Design Principles
 
 1. **Voice-first, complexity-hidden.** The owner should never see "embedding," "vector," or "endpoint." They speak. The docs describe how that simplicity is implemented.
-2. **Per-turn processing.** Go handles one conversation turn per HTTP request — no long-lived agent sessions, keeping hosting cheap and scaling simple.
+2. **Per-turn processing.** Go handles one conversation turn per HTTP request - no long-lived agent sessions, keeping hosting cheap and scaling simple.
 3. **Isolation by default.** Every query is scoped to a `bot_id` in both Supabase (RLS) and Qdrant (payload filter). A scoping bug would leak data between businesses.
-4. **Free-tier friendly.** Cohere, OpenRouter, and Groq all have generous free tiers. The platform defaults to free models so small businesses pay nothing to run.
-5. **Graceful degradation.** If embeddings fail, the bot answers from the system prompt. If Qdrant is down, the bot answers from history + prompt. If Firecrawl is unavailable, basic HTTP scraping kicks in. The bot never 500s when an upstream service is unreachable — it degrades gracefully.
-6. **No vendor lock-in for infra.** Each external service (Supabase, Qdrant, Cohere, OpenRouter, Groq, Firecrawl) is reached through a thin HTTP client, so swapping providers only touches one file per service.
+4. **Free-tier friendly.** Qdrant's native inference, OpenRouter, and Groq all have generous free tiers. The platform defaults to free models so small businesses pay nothing to run.
+5. **Graceful degradation.** If embeddings fail, the bot answers from the system prompt. If Qdrant is down, the bot answers from history + prompt. If Firecrawl is unavailable, basic HTTP scraping kicks in. The bot never 500s when an upstream service is unreachable - it degrades gracefully.
+6. **No vendor lock-in for infra.** Each external service (Supabase, Qdrant, OpenRouter, Groq, Firecrawl) is reached through a thin HTTP client, so swapping providers only touches one file per service.
 7. **Secrets never in the frontend.** The Next.js frontend holds no API keys or tokens. All keys live on the Go backend, keeping shareable, no-login chat links safe.
 
 ---
@@ -430,7 +760,7 @@ The `docker-compose.yml` runs four services. The backend uses `env_file: ./backe
 - ✅ Image/PDF/DOCX/LaTeX/multi-format ingestion with vision-model reading
 - ✅ Shareable, no-login chat links + embeddable widget
 - ✅ Owner dashboard for bot management, knowledge, and conversations
-- ✅ Cohere embeddings (1,536-dim, matches Qdrant collection)
+- ✅ Qdrant native inference embeddings (384-dim, multilingual-e5-small, no separate embedding API needed)
 - ✅ Firecrawl-powered website scraping with HTTP fallback
 - ✅ Groq as fallback LLM provider
 - ✅ End-to-end type-check and build validation
@@ -439,6 +769,6 @@ The `docker-compose.yml` runs four services. The backend uses `env_file: ./backe
 
 ## License & Contributing
 
-MIT. Contributions welcome — open an issue or PR.
+MIT. Contributions welcome - open an issue or PR.
 
 For support, please open an issue on GitHub.
