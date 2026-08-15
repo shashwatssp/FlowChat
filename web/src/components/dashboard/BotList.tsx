@@ -27,6 +27,8 @@ interface Bot {
   slug: string;
   avatar_url: string;
   system_prompt: string;
+  calendar_enabled?: boolean;
+  timezone?: string;
   api_key: string;
   usage_count: number;
   created_at: string;
@@ -40,6 +42,8 @@ interface BotFormPayload {
   description: string;
   avatar_url: string;
   system_prompt: string;
+  calendar_enabled?: boolean;
+  timezone?: string;
 }
 
 /**
@@ -108,7 +112,10 @@ export default function BotList() {
       const response = await botApi.create({
         name: data.name,
         description: data.description,
+        avatar_url: data.avatar_url,
         system_prompt: data.system_prompt,
+        calendar_enabled: data.calendar_enabled,
+        timezone: data.timezone,
       });
       addBot(response.data);
       toast.success('Bot created successfully');
@@ -131,6 +138,8 @@ export default function BotList() {
         description: data.description,
         avatar_url: data.avatar_url,
         system_prompt: data.system_prompt,
+        calendar_enabled: data.calendar_enabled,
+        timezone: data.timezone,
       });
       const response = await botApi.get(editingBot.id);
       updateBot(response.data);

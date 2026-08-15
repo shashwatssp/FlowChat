@@ -8,6 +8,7 @@ import {
   Database,
   FileText,
   Globe,
+  Mic,
   RefreshCw,
   Trash2,
 } from 'lucide-react';
@@ -35,6 +36,8 @@ function formatType(type: string) {
       return 'File Upload';
     case 'web_scraping':
       return 'Web Scraping';
+    case 'voice_to_text':
+      return 'Voice Recording';
     default:
       return type || '—';
   }
@@ -46,6 +49,8 @@ function getTypeIcon(type: string) {
       return <FileText size={16} className="text-gray-400" />;
     case 'web_scraping':
       return <Globe size={16} className="text-gray-400" />;
+    case 'voice_to_text':
+      return <Mic size={16} className="text-gray-400" />;
     default:
       return <Database size={16} className="text-gray-400" />;
   }
@@ -186,7 +191,64 @@ export default function DocumentManagementTable({
             </p>
           </div>
         ) : (
-          <table className="w-full">
+          <>
+            {/* Mobile cards */}
+            <div className="sm:hidden space-y-3">
+              {sources.map((source) => (
+                <div
+                  key={source.id}
+                  className="bg-white rounded-lg shadow-sm border p-4 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {getTypeIcon(source.type)}
+                      <span className="text-sm font-medium text-gray-900 truncate">
+                        {source.name}
+                      </span>
+                    </div>
+                    <StatusBadge status={source.status} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-gray-500">Type:</span>{" "}
+                      <span className="text-gray-600">{formatType(source.type)}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Chunks:</span>{" "}
+                      <span className="text-gray-600">{source.chunk_count || 0}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Created:</span>{" "}
+                      <span className="text-gray-600">
+                        {new Date(source.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => handleReindex(source)}
+                      disabled={reindexing[source.id]}
+                      className="flex-1 p-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                      title="Re-index"
+                    >
+                      <RefreshCw size={14} className="mx-auto mb-1" />
+                      Re-index
+                    </button>
+                    <button
+                      onClick={() => handleDelete(source)}
+                      className="flex-1 p-2 text-sm text-red-600 border border-red-200 rounded-md hover:bg-red-50"
+                      title="Delete"
+                    >
+                      <Trash2 size={14} className="mx-auto mb-1" />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full">
             <thead>
               <tr className="border-b bg-gray-50">
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
@@ -261,6 +323,8 @@ export default function DocumentManagementTable({
               ))}
             </tbody>
           </table>
+            </div>
+          </>
         )}
       </div>
     </div>
