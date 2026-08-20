@@ -145,7 +145,7 @@ export default function BotManagementPage() {
               rel="noopener noreferrer"
             >
               <ExternalLink size={12} />
-              {process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/chat/{bot.slug}
+              {(typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'))}/chat/{bot.slug}
             </Link>
           </p>
         </div>

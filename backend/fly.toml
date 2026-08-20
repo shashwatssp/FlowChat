@@ -1,0 +1,37 @@
+# Fly.io configuration for FlowChat backend
+# This keeps your app ALWAYS-ON (no sleeping, no cold starts)
+app = "flowchat-backend"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[build.args]
+  GO_VERSION = "1.24"
+
+[env]
+  ENV = "production"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # CRITICAL: auto_stop_machines = "off" means the machine NEVER sleeps
+  # This guarantees 100% uptime with zero cold starts
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "15s"
+    method = "GET"
+    path = "/health"
+    protocol = "http"
+    timeout = "5s"
+    headers = { X-Forwarded-Proto = "https" }
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

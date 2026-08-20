@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { MessageSquare, Upload, Share2, Zap } from 'lucide-react';
+import { MessageSquare, Upload, Share2, Zap, Mic } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -66,6 +66,15 @@ export default function Home() {
             <h3 className="text-xl font-semibold mb-2">Embed Anywhere</h3>
             <p className="text-gray-600">
               Add to your website with one line of code or use our REST API
+            </p>
+          </div>
+          <div className="text-center p-6">
+            <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Mic className="w-8 h-8 text-primary-600" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">Voice Training</h3>
+            <p className="text-gray-600">
+              Train your chatbot by simply speaking about your business — the browser transcribes your voice locally, no audio is ever uploaded.
             </p>
           </div>
         </div>

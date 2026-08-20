@@ -112,7 +112,7 @@ Open `http://localhost:3000` and `http://localhost:8080/health`.
 - **Qdrant** - vector database for the knowledge base (semantic search / RAG) with **native inference**. Two collections are initialized at startup: `knowledge_chunks` (384-dim, Cosine) and `feedback_vectors` (384-dim, Cosine). A `bot_id` payload index is created on both for fast per-bot filtering. Qdrant generates embeddings internally using the `intfloat/multilingual-e5-small` model, so no separate embedding API call is needed.
 - **Cohere** - a Cohere HTTP client exists in the codebase (`utils.NewCohereClient`, with retry logic, 96-request batching, 120s timeout) but is **not currently used**. Qdrant native inference handles all embeddings, eliminating the need for a Cohere API key.
 - **OpenRouter** - primary LLM provider for chat generation, question suggestions, and image vision. Supports the OpenAI-compatible API (`/chat/completions`, `/embeddings`).
-- **Groq** - secondary LLM provider. If `OPENROUTER_API_KEY` is not set, the config falls back to `GROQ_API_KEY` with `GROQ_BASE_URL=https://api.groq.com/openai/v1`.
+|- **Groq** - secondary LLM provider. If `OPENROUTER_API_KEY` is not set, the config falls back to `GROQ_API_KEY` (the base URL remains OpenRouter's unless `LLM_BASE_URL` is set).|
 - **Firecrawl** - website scraping API (`/v1/scrape` for single pages, `/v1/crawl` for sitemaps using `sitemap.xml`). Falls back to basic HTTP + HTML stripping when no key is set or the API call fails.
 - **Redis** - available for future caching / background job queues (runs in Docker Compose but not yet actively used by the core flow).
 
@@ -161,7 +161,7 @@ Qdrant is the vector database that powers semantic search (RAG). At backend star
 |---|---|---|
 | **Qdrant** (native inference) | Embeddings for knowledge chunks + query vectors | `QDRANT_EMBEDDING_MODEL` (default `intfloat/multilingual-e5-small`, 384-dim) |
 | **OpenRouter** | Chat generation, vision, FAQ suggestions | `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL` (default `https://openrouter.ai/api/v1`) |
-| **Groq** | Fallback LLM provider (if OpenRouter key is absent) | `GROQ_API_KEY`, `GROQ_BASE_URL` (default `https://api.groq.com/openai/v1`) |
+| **Groq** | Fallback LLM provider (if OpenRouter key is absent) | `GROQ_API_KEY` |
 | **Firecrawl** | Website scraping (markdown extraction) | `FIRECRAWL_API_KEY` |
 
 ### Model Selection
@@ -175,9 +175,7 @@ All model choices are configurable via environment variables - no code changes n
 | `LLM_EMBEDDING_MODEL` | Embedding model (OpenRouter fallback) | `openai/text-embedding-3-small:free` |
 | `LLM_QUESTION_MODEL` | Model for FAQ suggestion generation | falls back to `LLM_CHAT_MODEL` |
 | `LLM_VISION_MODEL` | Vision model for image description | falls back to `LLM_CHAT_MODEL` |
-| `GROQ_CHAT_MODEL` | Groq chat model | `groq/compound-mini` |
-| `GROQ_VISION_MODEL` | Groq vision model | `groq/compound-mini` |
-
+|
 ### RAG (Retrieval-Augmented Generation)
 
 Every chat turn follows this pipeline (in `handlers/chat.go`):
@@ -656,11 +654,16 @@ LLM_EMBEDDING_MODEL=openai/text-embedding-3-small:free
 # COHERE_BASE_URL=https://api.cohere.com/v2
 # COHERE_EMBEDDING_MODEL=embed-v4.0
 
-# Groq (fallback LLM provider - used if OPENROUTER_API_KEY is not set)
+# Groq (fallback LLM provider - GROQ_API_KEY is used as a fallback
+# for OPENROUTER_API_KEY when the OpenRouter key is not set.
+# config.go does not read GROQ_BASE_URL/CHAT_MODEL/VISION_MODEL.
 GROQ_API_KEY=your-groq-key
-GROQ_BASE_URL=https://api.groq.com/openai/v1
-GROQ_CHAT_MODEL=groq/compound-mini
-GROQ_VISION_MODEL=groq/compound-mini
+
+# Google Calendar (appointment booking integration)
+GOOGLE_CALENDAR_CLIENT_ID=
+GOOGLE_CALENDAR_CLIENT_SECRET=
+GOOGLE_CALENDAR_REDIRECT_URL=
+GOOGLE_CALENDAR_SCOPES=https://www.googleapis.com/auth/calendar.events
 
 # Auth
 JWT_SECRET=your-super-secret-key-min-32-chars
@@ -732,9 +735,17 @@ This README covers *what* FlowChat is. The `docs/` folder explains *how* it is b
 
 ## Deployment
 
-### Render (production backend)
+### Render (production backend — primary)
 
-`render.yaml` defines the backend as a Docker service on port `:10000`. Sensitive keys (`SUPABASE_*`, `QDRANT_*`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `FIRECRAWL_API_KEY`, `JWT_SECRET`, `ALLOWED_ORIGINS`) are set as `sync: false` environment variables in the Render dashboard - never committed to version control.
+`render.yaml` (at the repo root) defines the backend as a Docker service on port `:10000`. Sensitive keys (`SUPABASE_*`, `QDRANT_*`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `FIRECRAWL_API_KEY`, `JWT_SECRET`, `ALLOWED_ORIGINS`) are set as `sync: false` environment variables in the Render dashboard - never committed to version control.
+
+### Fly.io (alternative backend)
+
+`backend/fly.toml` deploys the backend as an always-on Fly.io service (`app = "flowchat-backend"`, `primary_region = "iad"`). It builds from `backend/Dockerfile` and exposes port 8080 with health checks on `/health`. The `[build.args]` `GO_VERSION` is set to `1.24` to match the project's Go toolchain.
+
+### Northflank (alternative backend)
+
+`backend/northflank.json` defines a Northflank service (`flowchat-backend`) that builds from `backend/Dockerfile`, exposes port 8080, and reads secrets (`SUPABASE_*`, `QDRANT_*`, `OPENROUTER_*`, `GROQ_API_KEY`, `COHERE_API_KEY`, `JWT_SECRET`, `ALLOWED_ORIGINS`) from the environment. It runs 1–3 instances with CPU/memory autoscaling.
 
 ### Docker Compose (local)
 

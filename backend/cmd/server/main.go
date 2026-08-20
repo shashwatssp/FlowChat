@@ -129,6 +129,15 @@ func main() {
 		// Public bot lookup (no auth) - used by shareable chat links & the widget
 		api.GET("/bots/public/:slug", botHandler.GetPublicBot)
 
+		// Public booking routes — customers can check availability and book
+		// appointments without authentication (link-based access).
+		botsPublic := api.Group("/bots")
+		{
+			botsPublic.GET("/:botID/availability", appointmentHandler.GetAvailability)
+			botsPublic.POST("/:botID/availability/check", appointmentHandler.CheckAvailability)
+			botsPublic.POST("/:botID/appointments", appointmentHandler.BookAppointment)
+		}
+
 		// Protected routes
 		protected := api.Group("")
 		protected.Use(middleware.JWTAuth(cfg.JWTSecret))
@@ -150,10 +159,7 @@ func main() {
 			bots.GET("/:botID/settings", appointmentHandler.GetCalendarSettings)
 			bots.PUT("/:botID/settings", appointmentHandler.UpdateCalendarSettings)
 			bots.GET("/:botID/appointments", appointmentHandler.ListAppointments)
-				bots.GET("/:botID/availability", appointmentHandler.GetAvailability)
-				bots.POST("/:botID/availability/check", appointmentHandler.CheckAvailability)
-				bots.POST("/:botID/appointments", appointmentHandler.BookAppointment)
-				bots.DELETE("/:botID/appointments/:appointmentID", appointmentHandler.CancelAppointment)
+			bots.DELETE("/:botID/appointments/:appointmentID", appointmentHandler.CancelAppointment)
 			}
 
 // Knowledge management
