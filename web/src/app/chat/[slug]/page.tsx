@@ -39,9 +39,9 @@ export default function ChatPage() {
   }, [botSlug]);
 
   return (
-    <div className="h-[100dvh] bg-gray-50 flex flex-col overflow-hidden">
+    <div className="h-[100dvh] min-h-0 bg-gray-50 flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white shadow-sm border-b flex-shrink-0">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
             {bot?.avatar_url ? (
@@ -65,10 +65,6 @@ export default function ChatPage() {
         </div>
       </header>
 
-      {/* Chat Interface — wrap in a flex-1 container so it fills the
-          remaining height of the 100dvh page above the bottom system
-          bars. Without this, ChatInterface sizes to its content and the
-          browser shows a large gray gap below the input. */}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <ChatInterface botSlug={botSlug} botID={bot?.id || ''} emptyStateBotName={bot?.name} />
       </div>

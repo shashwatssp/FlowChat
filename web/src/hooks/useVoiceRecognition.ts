@@ -168,36 +168,24 @@ export function useVoiceRecognition() {
       setIsListening(false);
       return;
     }
-    recognition.continuous = true;
+    // A chat composer captures one utterance per tap. Mobile Chrome can
+    // re-emit cumulative finals in continuous mode, so single-result mode
+    // avoids duplicate final phrases at the source.
+    recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = navigator.language || 'en-US';
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let interim = '';
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        const transcript = result[0].transcript;
-
-        if (!result.isFinal) {
-          interim += transcript;
-          continue;
-        }
-
-        // String-level dedupe. Mobile Chrome re-emits the SAME
-        // recogniser output under different result indexes, AND some
-        // builds interleave partial interims into finals, so an index
-        // cursor alone catches only some re-emits. We additionally
-        // diff the actual text via mergeFinal before committing.
-        const curr = transcript.trim();
-        if (curr === '') continue;
-        if (i > lastFinalIndexRef.current) {
-          setFinalTranscript((prev) => mergeFinal(prev, curr));
-          lastFinalIndexRef.current = i;
-        }
+      const result = event.results[event.results.length - 1];
+      if (!result) return;
+      const transcript = result[0].transcript.trim();
+      if (!transcript) return;
+      if (result.isFinal) {
+        setFinalTranscript((prev) => mergeFinal(prev, transcript));
+        setInterimTranscript('');
+      } else {
+        setInterimTranscript(transcript);
       }
-
-      setInterimTranscript(interim);
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {

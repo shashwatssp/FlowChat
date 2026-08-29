@@ -106,7 +106,7 @@ export default function ChatInput({
   };
 
   return (
-    <div className="border-t bg-white p-4">
+    <div className="border-t bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex-shrink-0 sticky bottom-0 z-20">
       <div className="container mx-auto">
         <div className="flex gap-3 items-end">
 
