@@ -65,8 +65,13 @@ export default function ChatPage() {
         </div>
       </header>
 
-      {/* Chat Interface */}
-      <ChatInterface botSlug={botSlug} botID={bot?.id || ''} emptyStateBotName={bot?.name} />
+      {/* Chat Interface — wrap in a flex-1 container so it fills the
+          remaining height of the 100dvh page above the bottom system
+          bars. Without this, ChatInterface sizes to its content and the
+          browser shows a large gray gap below the input. */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <ChatInterface botSlug={botSlug} botID={bot?.id || ''} emptyStateBotName={bot?.name} />
+      </div>
     </div>
   );
 }

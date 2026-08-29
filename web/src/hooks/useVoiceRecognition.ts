@@ -39,6 +39,41 @@ interface SpeechRecognitionErrorEvent {
 }
 
 /**
+ * mergeFinal folds a new final transcript into the previous one without
+ * duplicating content. Mobile Chrome re-emits the same recogniser output
+ * under different result indexes, so an index-based cursor keeps letting
+ * duplicates through ("how are you how are you how are you"). The
+ * string-level rules below stop that:
+ *
+ *   - prev ends with curr     → identical re-emit, drop.
+ *   - curr starts with prev   → browser extended the recognised text,
+ *                               REPLACE prev with curr.
+ *   - curr ends with prev     → curr is a redundant prefix, drop.
+ *   - suffix/prefix overlap   → merge tail ("tell me" + "me about" →
+ *                               "tell me about").
+ *   - otherwise               → space-separate.
+ */
+function mergeFinal(prev: string, curr: string): string {
+  const p = prev.trimEnd();
+  if (!p) return curr;
+  if (p === curr) return prev;
+  if (p.endsWith(curr)) return prev;
+  if (curr.startsWith(p)) return curr;
+  if (curr.endsWith(p)) return prev;
+  const overlap = longestSuffixPrefixOverlap(p, curr);
+  if (overlap > 0) return p + curr.slice(overlap);
+  return p + ' ' + curr;
+}
+
+function longestSuffixPrefixOverlap(a: string, b: string): number {
+  const max = Math.min(a.length, b.length);
+  for (let k = max; k > 0; k--) {
+    if (a.slice(a.length - k) === b.slice(0, k)) return k;
+  }
+  return 0;
+}
+
+/**
  * Voice recognition hook using the browser Web Speech API.
  *
  * Provides speech-to-text transcription with real-time interim results
@@ -139,38 +174,30 @@ export function useVoiceRecognition() {
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let interim = '';
-      let newFinal = '';
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         const transcript = result[0].transcript;
 
-        if (result.isFinal) {
-          // Only commit final results whose index is STRICTLY greater
-          // than the highest one we already appended. This is the
-          // mobile-Chrome dedup fix: a final result at index N can be
-          // re-fired by the browser; we ignore it the second time.
-          if (i > lastFinalIndexRef.current) {
-            const sep = newFinal && !newFinal.endsWith(' ') && !transcript.startsWith(' ') ? ' ' : '';
-            newFinal += sep + transcript;
-            lastFinalIndexRef.current = i;
-          }
-        } else {
+        if (!result.isFinal) {
           interim += transcript;
+          continue;
+        }
+
+        // String-level dedupe. Mobile Chrome re-emits the SAME
+        // recogniser output under different result indexes, AND some
+        // builds interleave partial interims into finals, so an index
+        // cursor alone catches only some re-emits. We additionally
+        // diff the actual text via mergeFinal before committing.
+        const curr = transcript.trim();
+        if (curr === '') continue;
+        if (i > lastFinalIndexRef.current) {
+          setFinalTranscript((prev) => mergeFinal(prev, curr));
+          lastFinalIndexRef.current = i;
         }
       }
 
       setInterimTranscript(interim);
-
-      if (newFinal) {
-        setFinalTranscript((prev) => {
-          const trimmedPrev = prev.trimEnd();
-          if (!trimmedPrev) return newFinal.trim();
-          const sep = newFinal.startsWith(' ') || trimmedPrev.endsWith(' ') ? '' : ' ';
-          return trimmedPrev + sep + newFinal.trim();
-        });
-        setInterimTranscript('');
-      }
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
