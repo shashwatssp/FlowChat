@@ -187,7 +187,8 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 		"bot_id": botID,
 	}
 	log.Printf("[chat] STEP 4: Qdrant native inference search collection=knowledge_chunks model=%s", h.qdrantEmbeddingModel)
-	searchResults, err := h.qdrantClient.SearchDocuments(c.Request.Context(), "knowledge_chunks", h.qdrantEmbeddingModel, req.Message, 5, filter)
+	// top_k bumped to 7 so the model has more distinct passages to ground on.
+	searchResults, err := h.qdrantClient.SearchDocuments(c.Request.Context(), "knowledge_chunks", h.qdrantEmbeddingModel, req.Message, 7, filter)
 	if err != nil {
 		log.Printf("[chat] STEP 4 error: Qdrant search failed (%v); continuing without context", err)
 		searchResults = []qdrant.SearchResult{}
@@ -195,19 +196,42 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 		log.Printf("[chat] STEP 4 done: %d search results", len(searchResults))
 	}
 
-	// Build context from search results
+	// Numbered, deduped context. Chunking uses CHUNK_OVERLAP=50 runes
+	// (see utils/ChunkText), and Qdrant can return several near-duplicate
+	// passages for a single query. Numbering "[1] [2] ..." lets the model
+	// cite passages and clearly separates them; substring dedup drops the
+	// 50-char overlap between consecutive chunks.
 	var contextBuilder strings.Builder
 	var sources []Source
+	seenChunks := make([]string, 0, len(searchResults))
+	chunkIdx := 0
 	for _, result := range searchResults {
-		if content, ok := result.Payload["content"].(string); ok {
-			contextBuilder.WriteString(content)
-			contextBuilder.WriteString("\n\n")
-			sources = append(sources, Source{
-				Content: utils.TruncateString(content, 200),
-				Score:   result.Score,
-				Name:    getString(result.Payload, "source_name"),
-			})
+		content, ok := result.Payload["content"].(string)
+		if !ok {
+			continue
 		}
+		content = strings.TrimSpace(content)
+		if content == "" {
+			continue
+		}
+		isDup := false
+		for _, prev := range seenChunks {
+			if strings.Contains(content, prev) || (len(prev) > 80 && strings.Contains(prev, content)) {
+				isDup = true
+				break
+			}
+		}
+		if isDup {
+			continue
+		}
+		chunkIdx++
+		fmt.Fprintf(&contextBuilder, "[%d] %s\n\n", chunkIdx, content)
+		seenChunks = append(seenChunks, content)
+		sources = append(sources, Source{
+			Content: utils.TruncateString(content, 200),
+			Score:   result.Score,
+			Name:    getString(result.Payload, "source_name"),
+		})
 	}
 
 	// Get conversation history
@@ -478,22 +502,42 @@ func (h *ChatHandler) handleStreamChat(c *gin.Context, messages []map[string]int
 	}()
 }
 
+// getConversationHistory returns the most recent messages of a conversation
+// in chronological order. Tuning notes:
+//   - historyLimit  = 20 (was 10) — last ~10 user/assistant turns so the
+//     model has enough recent context to follow multi-turn conversations.
+//   - historyMaxChars = 1500 — cap each message's content so a long
+//     streamed reply or a paste-bomb doesn't eat the entire LLM input
+//     budget; free OpenRouter models in particular cap at ~8k input
+//     tokens and 20 untrimmed messages can blow that.
 func (h *ChatHandler) getConversationHistory(ctx context.Context, conversationID string) ([]map[string]interface{}, error) {
+	const (
+		historyLimit    = 20
+		historyMaxChars = 1500
+	)
+
 	results, err := h.supabaseClient.From("messages").
 		Select("role, content").
 		Eq("conversation_id", conversationID).
 		Order("created_at", false).
-		Limit(10).
+		Limit(historyLimit).
 		Execute(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Reverse to get chronological order
+	// Reverse to chronological order, trimming any oversized message.
 	var messages []map[string]interface{}
 	for i := len(results) - 1; i >= 0; i-- {
-		messages = append(messages, results[i])
+		row := results[i]
+		if content, ok := row["content"].(string); ok && len(content) > historyMaxChars {
+			row = map[string]interface{}{
+				"role":    row["role"],
+				"content": content[:historyMaxChars] + "… [truncated]",
+			}
+		}
+		messages = append(messages, row)
 	}
 
 	return messages, nil

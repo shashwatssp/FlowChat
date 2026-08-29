@@ -18,6 +18,8 @@ import toast from 'react-hot-toast';
 interface Props {
   botSlug: string;
   botID: string;
+  /** Bot display name used to personalize the empty-state greeting. */
+  emptyStateBotName?: string;
 }
 
 const STORAGE_KEY_PREFIX = 'flowchat_chat_';
@@ -48,7 +50,7 @@ function getBookingConflictReason(conflicts: unknown): 'rule' | 'taken' | null {
   return null;
 }
 
-export default function ChatInterface({ botSlug, botID }: Props) {
+export default function ChatInterface({ botSlug, botID, emptyStateBotName }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -67,6 +69,9 @@ export default function ChatInterface({ botSlug, botID }: Props) {
   const [bookingLoading, setBookingLoading] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Track the last voice-error message so we don't toast the same
+  // error on every render. Only fire a toast when it actually changes.
+  const lastVoiceErrorRef = useRef<string | null>(null);
 
   // ─── Load persisted conversation from localStorage on mount ──────────────
   const storageKey = `${STORAGE_KEY_PREFIX}${botSlug}`;
@@ -103,6 +108,18 @@ export default function ChatInterface({ botSlug, botID }: Props) {
 
   // ─── Voice state management ──────────────────────────────────────────────
   const voice = useVoiceState({ enableTTS: voiceMode });
+
+  // Surface microphone failures as a toast so the user understands
+  // why voice "click → nothing happens" instead of silently failing.
+  useEffect(() => {
+    const err = voice.error;
+    if (err && err !== lastVoiceErrorRef.current) {
+      lastVoiceErrorRef.current = err;
+      toast.error(err, { duration: 5000 });
+    } else if (!err) {
+      lastVoiceErrorRef.current = null;
+    }
+  }, [voice.error]);
 
   // ─── Handle send with streaming ──────────────────────────────────────────
   const handleSend = useCallback(
@@ -406,7 +423,7 @@ export default function ChatInterface({ botSlug, botID }: Props) {
   };
 
   return (
-<div className="flex flex-col h-[calc(100dvh-4rem)]">
+<div className="flex flex-col flex-1 min-h-0 h-full overflow-hidden">
       <MessageList
         messages={messages}
         isLoading={false}
@@ -417,6 +434,7 @@ export default function ChatInterface({ botSlug, botID }: Props) {
         onCopy={handleCopy}
         onSendFeedback={handleSendFeedback}
         onSourceClick={handleSourceClick}
+        emptyStateBotName={emptyStateBotName}
       />
 
       {error && !isStreaming && messages.length === 0 && (

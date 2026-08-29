@@ -39,7 +39,7 @@ export default function ChatPage() {
   }, [botSlug]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="h-[100dvh] bg-gray-50 flex flex-col overflow-hidden">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-4">
@@ -66,7 +66,7 @@ export default function ChatPage() {
       </header>
 
       {/* Chat Interface */}
-      <ChatInterface botSlug={botSlug} botID={bot?.id || ''} />
+      <ChatInterface botSlug={botSlug} botID={bot?.id || ''} emptyStateBotName={bot?.name} />
     </div>
   );
 }
