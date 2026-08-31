@@ -42,10 +42,10 @@ FlowChat removes every barrier between a small business and its own AI assistant
 - 🌍 **Built for India** - every model defaults to a free-tier option. Voice works in Hindi + English + Hinglish through the browser.
 - 📊 **Insightful dashboard** - browse conversations, read full message history, and leave feedback - all scoped to a bot.
 - 🌐 **Website ingestion via Firecrawl** - paste any website URL and FlowChat scrapes it for training. Uses the **Firecrawl API** (`/v1/scrape` for single pages, `/v1/crawl` for sitemaps). If the key is not set or the call fails, falls back to a basic HTTP fetch with HTML tag stripping - the bot is always trained, just with varying quality.
-|- 📑 **Multi-format document ingestion** - upload `.pdf`, `.docx`, `.md`, `.csv`, `.json`, `.txt`, `.tex`/`.latex`, and images. PDFs use `github.com/ledongthuc/pdf`, DOCX is unpacked from ZIP and parsed for `<w:t>` text, LaTeX markup is stripped via regex, and images are described by a vision model.
-|- 📅 **Appointment booking** - customers can book appointments directly through the chat. The bot detects booking intent, checks availability against the owner's working hours and timezone, and confirms slots atomically with double-booking prevention.
-|- 📆 **Google Calendar integration** - bidirectional sync with Google Calendar via OAuth 2.0. New appointments appear as calendar events; external events block corresponding time slots.
-|- 🔗 **Shareable chat link**
+- 📑 **Multi-format document ingestion** - upload `.pdf`, `.docx`, `.md`, `.csv`, `.json`, `.txt`, `.tex`/`.latex`, and images. PDFs use `github.com/ledongthuc/pdf`, DOCX is unpacked from ZIP and parsed for `<w:t>` text, LaTeX markup is stripped via regex, and images are described by a vision model.
+- 📅 **Appointment booking** - customers can book appointments directly through the chat. The bot detects booking intent, checks availability against the owner's working hours and timezone, and confirms slots atomically with double-booking prevention.
+- 📆 **Google Calendar integration** - bidirectional sync with Google Calendar via OAuth 2.0. New appointments appear as calendar events; external events block corresponding time slots.
+- 🔗 **Shareable chat link**
 ---
 
 ## A Note on Voice
