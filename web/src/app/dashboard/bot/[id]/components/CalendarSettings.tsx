@@ -228,8 +228,8 @@ export default function CalendarSettings({ botID }: CalendarSettingsProps) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <Calendar size={20} />
           Calendar Settings
@@ -237,7 +237,7 @@ export default function CalendarSettings({ botID }: CalendarSettingsProps) {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+          className="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
         >
           <Save size={16} className={saving ? 'animate-pulse' : ''} />
           {saving ? 'Saving...' : 'Save Changes'}
@@ -343,20 +343,31 @@ export default function CalendarSettings({ botID }: CalendarSettingsProps) {
               {DAYS.map((day) => {
                 const dayHours = settings.working_hours?.[day.key] || { start: '09:00', end: '17:00' };
                 return (
-                  <div key={day.key} className="grid grid-cols-3 items-center gap-4">
-                    <span className="text-sm text-gray-700 font-medium">{day.label}</span>
-                    <input
-                      type="time"
-                      value={dayHours.start}
-                      onChange={(e) => updateWorkingHours(day.key, 'start', e.target.value)}
-                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                    <input
-                      type="time"
-                      value={dayHours.end}
-                      onChange={(e) => updateWorkingHours(day.key, 'end', e.target.value)}
-                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
+                  <div
+                    key={day.key}
+                    className="rounded-lg border border-gray-200 p-3 sm:p-0 sm:border-0 sm:grid sm:grid-cols-3 sm:items-center sm:gap-4"
+                  >
+                    <span className="block text-sm text-gray-700 font-medium mb-2 sm:mb-0">{day.label}</span>
+                    <div className="grid grid-cols-2 gap-2 sm:col-span-2 sm:gap-4">
+                      <div>
+                        <span className="block text-[11px] font-medium text-gray-400 mb-1 sm:hidden">From</span>
+                        <input
+                          type="time"
+                          value={dayHours.start}
+                          onChange={(e) => updateWorkingHours(day.key, 'start', e.target.value)}
+                          className="w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                      <div>
+                        <span className="block text-[11px] font-medium text-gray-400 mb-1 sm:hidden">To</span>
+                        <input
+                          type="time"
+                          value={dayHours.end}
+                          onChange={(e) => updateWorkingHours(day.key, 'end', e.target.value)}
+                          className="w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                    </div>
                   </div>
                 );
               })}
@@ -374,12 +385,12 @@ export default function CalendarSettings({ botID }: CalendarSettingsProps) {
             </p>
 
             {/* Add exception form */}
-            <div className="flex flex-wrap gap-3 items-end mb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end mb-4">
               <input
                 type="date"
                 value={newExceptionDate}
                 onChange={(e) => setNewExceptionDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
               <div className="flex items-center gap-2">
                 <input
@@ -409,7 +420,7 @@ export default function CalendarSettings({ botID }: CalendarSettingsProps) {
                 {settings.exceptions.map((exception, index) => (
                   <div
                     key={index}
-                    className={`flex items-center justify-between p-3 rounded-lg border ${
+                    className={`flex items-center justify-between gap-2 p-3 rounded-lg border ${
                       exception.is_closed
                         ? 'bg-red-50 border-red-200'
                         : 'bg-green-50 border-green-200'
