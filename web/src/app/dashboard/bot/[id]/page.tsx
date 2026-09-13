@@ -154,16 +154,17 @@ export default function BotManagementPage() {
       {/* Tabs */}
       <div className="container mx-auto px-4 py-6">
         <div className="bg-white rounded-lg shadow-sm border">
-          <nav className="flex border-b overflow-x-auto">
+          {/* Mobile: 3x2 grid so all tabs are visible at once; sm+: horizontal tab row */}
+          <nav className="grid grid-cols-3 border-b sm:flex sm:overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium whitespace-nowrap transition-colors ${
+                className={`flex flex-col items-center justify-center gap-1 px-2 py-3 text-xs font-medium transition-colors sm:flex-row sm:gap-2 sm:px-6 sm:py-4 sm:text-sm sm:whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'border-primary-600 text-primary-600 border-b-2'
+                    ? 'border-primary-600 text-primary-600 border-b-2 bg-primary-50 sm:bg-transparent'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }}`}
+                }`}
               >
                 {tab.icon}
                 {tab.label}

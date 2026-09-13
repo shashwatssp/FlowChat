@@ -178,19 +178,24 @@ export default function BotList() {
 
   return (
     <div className="space-y-6">
-      {/* Stats + primary action */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="bg-white rounded-lg shadow-sm border px-4 py-3 min-w-[150px]">
+      {/* Stats + primary action (stacks on mobile so nothing overflows) */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center sm:gap-4">
+          <div className="bg-white rounded-lg shadow-sm border px-4 py-3 sm:min-w-[150px]">
             <p className="text-xs text-gray-500 uppercase">Total Bots</p>
             <p className="text-2xl font-bold text-gray-900">{bots.length}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm border px-4 py-3 min-w-[160px]">
+          <div className="bg-white rounded-lg shadow-sm border px-4 py-3 sm:min-w-[160px]">
             <p className="text-xs text-gray-500 uppercase">Total Chats</p>
             <p className="text-2xl font-bold text-gray-900">{totalUsage}</p>
           </div>
         </div>
-        <Button icon={<Plus size={18} />} variant="primary" onClick={openCreate}>
+        <Button
+          icon={<Plus size={18} />}
+          variant="primary"
+          onClick={openCreate}
+          className="w-full sm:w-auto"
+        >
           New Bot
         </Button>
       </div>
